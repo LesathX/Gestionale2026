@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <link rel="icon" href="data:,">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gestione Strumentazione Laboratorio</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-  <!-- Firebase COMPAT (niente import) -->
   <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
   <style>
@@ -94,7 +93,7 @@
     .footer-note{font-size:.75rem;color:#94a3b8;text-align:center;margin-top:1rem}
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:50;display:none;align-items:center;justify-content:center;padding:1rem}
     .modal-overlay.show{display:flex}
-    .modal{background:#fff;border-radius:1rem;width:100%;max-width:48rem;max-height:92vh;overflow-y:auto;box-shadow:0 25px 50px --12px rgba(0,0,0,.25)}
+    .modal{background:#fff;border-radius:1rem;width:100%;max-width:48rem;max-height:92vh;overflow-y:auto;box-shadow:0 25px 50px -12px rgba(0,0,0,.25)}
     .modal-sm{max-width:420px}
     .modal-header{position:sticky;top:0;background:#fff;border-bottom:1px solid #f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;z-index:10}
     .modal-header h2{font-size:1.125rem;font-weight:700}
@@ -266,7 +265,6 @@
   </main>
 </div>
 
-<!-- Modal dispositivo -->
 <div id="modal" class="modal-overlay">
   <div class="modal">
     <div class="modal-header">
@@ -344,7 +342,6 @@
   </div>
 </div>
 
-<!-- Modal utenti -->
 <div id="usersModal" class="modal-overlay">
   <div class="modal" style="max-width:700px">
     <div class="modal-header">
@@ -370,7 +367,7 @@
     <div class="modal-body">
       <input type="hidden" id="editUserId">
       <div class="form-group"><label>Username *</label><input type="text" id="userUsername"></div>
-      <div class="form-group"><label>Nome</label><input<input type="text" id="userNome"></div>
+      <div class="form-group"><label>Nome</label><input type="text" id="userNome"></div>
       <div class="form-group"><label>Password *</label><input type="password" id="userPassword"></div>
       <div class="form-group">
         <label>Ruolo *</label>
@@ -390,7 +387,7 @@
 <div id="toast" class="toast"><i class="fas fa-check-circle"></i><span id="toastMsg"></span></div>
 
 <script>
-/* ===================== CONFIG CON I TUOI DATI FIREBASE ===================== */
+/* ========== INSERISCI QUI I TUOI DATI FIREBASE ========== */
 const firebaseConfig = {
   apiKey: "AIzaSyBh8Bo3qihl1WhxKMuj6lH9NMNPzAwnA_g",
   authDomain: "gestionale-pisa.firebaseapp.com",
@@ -399,48 +396,42 @@ const firebaseConfig = {
   messagingSenderId: "534797853850",
   appId: "1:534797853850:web:a054a8e91fa4646c222b23"
 };
-/* ===================================================================== */
+/* ======================================================= */
 
 const EMAILJS_PUBLIC_KEY = "XGGJp7eun1r8VUpbn";
 const EMAILJS_SERVICE_ID = "service_4dw9ce7";
 const EMAILJS_TEMPLATE_ID = "template_ei9fawo";
-
 const SESSION_KEY = "lab_session_fb";
 const LAST_EMAIL_KEY = "lab_last_email_date";
 const DAYS_WARNING = 30;
 
-var db db = null;
-let equipment = [];
-let users = [];
-let currentUser = null;
-let unsubEquipment = null;
-let unsubUsers = null;
+var db = null;
+var equipment = [];
+var users = [];
+var currentUser = null;
+var unsubEquipment = null;
+var unsubUsers = null;
 
-try {
-  if (typeof emailjs !== "undefined") emailjs.init(EMAILJS_PUBLIC_KEY);
-} catch (e) {}
+try { if (typeof emailjs !== "undefined") emailjs.init(EMAILJS_PUBLIC_KEY); } catch (e) {}
 
 function showLoadError(msg) {
   var el = document.getElementById("loadingError");
   if (el) el.textContent = msg;
 }
-
 function hideLoading() {
   document.getElementById("loadingOverlay").classList.add("hidden");
 }
-
 function showLogin() {
   document.getElementById("loginScreen").classList.remove("hidden");
   document.getElementById("app").classList.remove("show");
 }
-
 function generateId() {
   return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).substr(2, 9);
 }
 
 function ensureAdminExists() {
   return db.collection("users").limit(1).get().then(function (snap) {
-    if if (snap.empty) {
+    if (snap.empty) {
       return db.collection("users").add({
         username: "admin",
         password: "admin123",
@@ -569,4 +560,695 @@ function buildExpiryMessage() {
 
 function sendExpiryEmail(manual) {
   if (typeof emailjs === "undefined") {
-    if (manual) alert("Email
+    if (manual) alert("EmailJS non caricato");
+    return;
+  }
+  var message = buildExpiryMessage();
+  if (!message) {
+    if (manual) showToast("Nessuna scadenza da notificare");
+    return;
+  }
+  if (!manual) {
+    var today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(LAST_EMAIL_KEY) === today) return;
+  }
+  var params = {
+    to_name: "Responsabile Laboratorio",
+    from_name: "Sistema Gestione Strumentazione",
+    subject: "Avviso scadenze DPC - " + new Date().toLocaleDateString("it-IT"),
+    message: message
+  };
+  if (manual) showToast("Invio email in corso...");
+  emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params)
+    .then(function () {
+      localStorage.setItem(LAST_EMAIL_KEY, new Date().toISOString().slice(0, 10));
+      showToast(manual ? "Email inviata" : "Email automatica inviata");
+    })
+    .catch(function (err) {
+      console.error(err);
+      if (manual) alert("Errore email: " + (err.text || JSON.stringify(err)));
+    });
+}
+
+function tryAutoSendEmail() {
+  setTimeout(function () { sendExpiryEmail(false); }, 2000);
+}
+
+function doLogin() {
+  var username = document.getElementById("loginUsername").value.trim();
+  var password = document.getElementById("loginPassword").value;
+  var errorBox = document.getElementById("loginError");
+  if (!username || !password) {
+    errorBox.textContent = "Inserisci username e password";
+    errorBox.classList.add("show");
+    return;
+  }
+  db.collection("users").where("username", "==", username).limit(1).get()
+    .then(function (snap) {
+      if (snap.empty) {
+        errorBox.textContent = "Username o password non corretti";
+        errorBox.classList.add("show");
+        return;
+      }
+      var doc = snap.docs[0];
+      var u = doc.data();
+      if (u.password !== password) {
+        errorBox.textContent = "Username o password non corretti";
+        errorBox.classList.add("show");
+        return;
+      }
+      currentUser = {
+        id: doc.id,
+        username: u.username,
+        nome: u.nome || u.username,
+        role: u.role
+      };
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+      errorBox.classList.remove("show");
+      showApp();
+    })
+    .catch(function (err) {
+      console.error(err);
+      errorBox.textContent = "Errore connessione: " + err.message;
+      errorBox.classList.add("show");
+    });
+}
+
+function doLogout() {
+  currentUser = null;
+  sessionStorage.removeItem(SESSION_KEY);
+  if (unsubEquipment) { unsubEquipment(); unsubEquipment = null; }
+  if (unsubUsers) { unsubUsers(); unsubUsers = null; }
+  showLogin();
+  document.getElementById("loginUsername").value = "";
+  document.getElementById("loginPassword").value = "";
+  document.getElementById("loginError").classList.remove("show");
+}
+
+function checkSession() {
+  try {
+    var s = sessionStorage.getItem(SESSION_KEY);
+    if (s) {
+      currentUser = JSON.parse(s);
+      showApp();
+      return;
+    }
+  } catch (e) {}
+  showLogin();
+}
+
+function isAdmin() {
+  return currentUser && currentUser.role === "admin";
+}
+
+function showApp() {
+  document.getElementById("loginScreen").classList.add("hidden");
+  document.getElementById("app").classList.add("show");
+  document.getElementById("currentUserName").textContent = currentUser.nome;
+  document.getElementById("currentUserRole").textContent = currentUser.role === "admin" ? "(Admin)" : "(Visualizzatore)";
+  var adminOnly = isAdmin();
+  document.getElementById("btnNuovo").style.display = adminOnly ? "inline-flex" : "none";
+  document.getElementById("btnUsers").style.display = adminOnly ? "inline-flex" : "none";
+  document.getElementById("btnImport").style.display = adminOnly ? "inline-flex" : "none";
+  document.getElementById("btnImportExcel").style.display = adminOnly ? "inline-flex" : "none";
+  document.getElementById("btnEmptyAdd").style.display = adminOnly ? "inline" : "none";
+  document.getElementById("thAzioni").style.display = adminOnly ? "" : "none";
+  document.getElementById("btnEmail").style.display = adminOnly ? "inline-flex" : "none";
+  startRealtimeListeners();
+  if (adminOnly) tryAutoSendEmail();
+}
+
+function clearFieldErrors() {
+  document.querySelectorAll(".field-error").forEach(function (el) { el.remove(); });
+  document.querySelectorAll("input, select, textarea").forEach(function (el) { el.classList.remove("error"); });
+}
+function showFieldError(fieldId, message) {
+  var field = document.getElementById(fieldId);
+  if (!field) return;
+  field.classList.add("error");
+  var errorEl = field.parentNode.querySelector(".field-error");
+  if (!errorEl) {
+    errorEl = document.createElement("div");
+    errorEl.className = "field-error";
+    field.parentNode.appendChild(errorEl);
+  }
+  errorEl.textContent = message;
+}
+function validateEquipment() {
+  clearFieldErrors();
+  var ok = true;
+  if (!document.getElementById("serialNumber").value.trim()) { showFieldError("serialNumber", "Obbligatorio"); ok = false; }
+  if (!document.getElementById("idDispositivo").value.trim()) { showFieldError("idDispositivo", "Obbligatorio"); ok = false; }
+  if (!document.getElementById("tipo").value) { showFieldError("tipo", "Seleziona tipo"); ok = false; }
+  if (!document.getElementById("ubicazione").value.trim()) { showFieldError("ubicazione", "Obbligatoria"); ok = false; }
+  var haF = document.querySelector('input[name="haSistemaFiltrante"]:checked');
+  if (haF && haF.value === "si") {
+    if (!document.getElementById("tipologiaFiltro").value.trim()) { showFieldError("tipologiaFiltro", "Obbligatorio o N.A."); ok = false; }
+    if (!document.getElementById("misureFiltro").value.trim()) { showFieldError("misureFiltro", "Obbligatorio o N.A."); ok = false; }
+  }
+  var haP = document.querySelector('input[name="haPrefiltro"]:checked');
+  if (haP && haP.value === "si") {
+    if (!document.getElementById("tipologiaPrefiltro").value.trim()) { showFieldError("tipologiaPrefiltro", "Obbligatorio o N.A."); ok = false; }
+    if (!document.getElementById("misurePrefiltro").value.trim()) { showFieldError("misurePrefiltro", "Obbligatorio o N.A."); ok = false; }
+  }
+  var u = document.getElementById("ultimaMan").value;
+  var p = document.getElementById("prossimaMan").value;
+  if (u && p && u > p) { showFieldError("prossimaMan", "Non può essere prima dell'ultima"); ok = false; }
+  return ok;
+}
+
+function showToast(msg) {
+  document.getElementById("toastMsg").textContent = msg;
+  var t = document.getElementById("toast");
+  t.classList.add("show");
+  setTimeout(function () { t.classList.remove("show"); }, 2800);
+}
+function statusBadge(stato) {
+  var map = { "Attivo": "badge-green", "In manutenzione": "badge-amber", "Fuori servizio": "badge-rose" };
+  return '<span class="badge ' + (map[stato] || "") + '">' + stato + "</span>";
+}
+function tipoIcon(tipo) {
+  var icons = {
+    "Cappa chimica": "fa-wind",
+    "Armadietto aspirato": "fa-box-open",
+    "Armadietto non aspirato": "fa-box",
+    "Armadio di sicurezza": "fa-shield-alt",
+    "Cappa a filtrazione": "fa-filter",
+    "HALO": "fa-circle-notch"
+  };
+  return icons[tipo] || "fa-flask";
+}
+function toggleFiltroFields() {
+  var s = document.querySelector('input[name="haSistemaFiltrante"]:checked');
+  var box = document.getElementById("filtroFields");
+  if (s && s.value === "si") box.classList.add("show");
+  else {
+    box.classList.remove("show");
+    document.getElementById("tipologiaFiltro").value = "";
+    document.getElementById("misureFiltro").value = "";
+  }
+}
+function togglePrefiltroFields() {
+  var s = document.querySelector('input[name="haPrefiltro"]:checked');
+  var box = document.getElementById("prefiltroFields");
+  if (s && s.value === "si") box.classList.add("show");
+  else {
+    box.classList.remove("show");
+    document.getElementById("tipologiaPrefiltro").value = "";
+    document.getElementById("misurePrefiltro").value = "";
+  }
+}
+
+function renderStats() {
+  var total = equipment.length, attivo = 0, manut = 0, fuori = 0, scaduti = 0, soon = 0;
+  equipment.forEach(function (e) {
+    if (e.stato === "Attivo") attivo++;
+    else if (e.stato === "In manutenzione") manut++;
+    else if (e.stato === "Fuori servizio") fuori++;
+    if (isOverdue(e.prossimaMan)) scaduti++;
+    else if (isExpiringSoon(e.prossimaMan)) soon++;
+  });
+  document.getElementById("statsContainer").innerHTML =
+    '<div class="stat-card"><div class="stat-value">' + total + '</div><div class="stat-label">Totale</div></div>' +
+    '<div class="stat-card"><div class="stat-value stat-green">' + attivo + '</div><div class="stat-label">Attivi</div></div>' +
+    '<div class="stat-card"><div class="stat-value stat-amber">' + manut + '</div><div class="stat-label">In manutenzione</div></div>' +
+    '<div class="stat-card"><div class="stat-value stat-rose">' + fuori + '</div><div class="stat-label">Fuori servizio</div></div>' +
+    '<div class="stat-card"><div class="stat-value ' + (scaduti > 0 ? "stat-red" : "") + '">' + scaduti + '</div><div class="stat-label">Scaduti</div></div>' +
+    '<div class="stat-card"><div class="stat-value ' + (soon > 0 ? "stat-orange" : "") + '">' + soon + '</div><div class="stat-label">In scadenza</div></div>';
+}
+
+function renderTable() {
+  var search = document.getElementById("searchInput").value.toLowerCase();
+  var tipo = document.getElementById("filterTipo").value;
+  var stato = document.getElementById("filterStato").value;
+  var filtroScadenza = document.getElementById("filterScadenza").value;
+  var filtered = equipment.filter(function (e) {
+    var ms = !search ||
+      (e.serialNumber || "").toLowerCase().indexOf(search) > -1 ||
+      (e.idDispositivo || "").toLowerCase().indexOf(search) > -1 ||
+      (e.marca || "").toLowerCase().indexOf(search) > -1 ||
+      (e.modello || "").toLowerCase().indexOf(search) > -1 ||
+      (e.ubicazione || "").toLowerCase().indexOf(search) > -1 ||
+      (e.responsabile || "").toLowerCase().indexOf(search) > -1;
+    var mt = !tipo || e.tipo === tipo;
+    var mst = !stato || e.stato === stato;
+    var msc = true;
+    if (filtroScadenza === "scaduti") msc = isOverdue(e.prossimaMan);
+    else if (filtroScadenza === "in_scadenza") msc = isExpiringSoon(e.prossimaMan);
+    else if (filtroScadenza === "ok") msc = getExpiryStatus(e.prossimaMan) === "ok" || !e.prossimaMan;
+    return ms && mt && mst && msc;
+  });
+  filtered.sort(function (a, b) {
+    var order = { overdue: 0, soon: 1, ok: 2, none: 3 };
+    var sa = getExpiryStatus(a.prossimaMan), sb = getExpiryStatus(b.prossimaMan);
+    if (order[sa] !== order[sb]) return order[sa] - order[sb];
+    return (a.serialNumber || "").localeCompare(b.serialNumber || "");
+  });
+  var tbody = document.getElementById("tableBody");
+  var empty = document.getElementById("emptyState");
+  var admin = isAdmin();
+  if (!filtered.length) {
+    tbody.innerHTML = "";
+    empty.classList.add("show");
+    return;
+  }
+  empty.classList.remove("show");
+  var html = "";
+  filtered.forEach(function (e) {
+    var status = getExpiryStatus(e.prossimaMan);
+    var rowClass = status === "overdue" ? "row-overdue" : (status === "soon" ? "row-soon" : "");
+    var dateClass = status === "overdue" ? "overdue" : (status === "soon" ? "soon" : "");
+    var daysText = "";
+    if (status === "overdue") daysText = " <small>(scaduto da " + Math.abs(getDaysUntil(e.prossimaMan)) + " gg)</small>";
+    else if (status === "soon") daysText = " <small>(tra " + getDaysUntil(e.prossimaMan) + " gg)</small>";
+    var filtroText = e.haSistemaFiltrante === "si"
+      ? '<span class="badge badge-blue">Sì</span>' + (e.tipologiaFiltro ? ' <small style="color:#475569">' + e.tipologiaFiltro + "</small>" : "")
+      : '<span class="badge badge-gray">No</span>';
+    var prefiltroText = e.haPrefiltro === "si"
+      ? '<span class="badge badge-blue">Sì</span>' + (e.tipologiaPrefiltro ? ' <small style="color:#475569">' + e.tipologiaPrefiltro + "</small>" : "")
+      : '<span class="badge badge-gray">No</span>';
+    var azioni = admin
+      ? '<td><div class="actions"><button class="btn-icon edit" onclick="editEquipment(\'' + e.id + '\')"><i class="fas fa-pen"></i></button><button class="btn-icon delete" onclick="deleteEquipment(\'' + e.id + '\')"><i class="fas fa-trash"></i></button></div></td>'
+      : "<td></td>";
+    html += '<tr class="' + rowClass + '">' +
+      '<td class="code">' + (e.serialNumber || "—") + "</td>" +
+      '<td class="code">' + (e.idDispositivo || "—") + "</td>" +
+      '<td><div class="tipo-cell"><i class="fas ' + tipoIcon(e.tipo) + '"></i><span>' + e.tipo + "</span></div></td>" +
+      "<td>" + ([e.marca, e.modello].filter(Boolean).join(" ") || "—") + "</td>" +
+      '<td class="truncate" title="' + (e.ubicazione || "") + '">' + (e.ubicazione || "—") + "</td>" +
+      "<td>" + filtroText + "</td><td>" + prefiltroText + "</td>" +
+      "<td>" + statusBadge(e.stato) + "</td>" +
+      "<td>" + formatDate(e.ultimaMan) + "</td>" +
+      '<td class="' + dateClass + '">' + formatDate(e.prossimaMan) + daysText + "</td>" +
+      "<td>" + (e.responsabile || "—") + "</td>" + azioni + "</tr>";
+  });
+  tbody.innerHTML = html;
+}
+
+function openModal(id) {
+  if (!isAdmin()) return;
+  clearFieldErrors();
+  document.getElementById("modal").classList.add("show");
+  document.getElementById("editId").value = "";
+  ["serialNumber","idDispositivo","tipo","marca","modello","ubicazione","ultimaMan","prossimaMan","responsabile","tipologiaFiltro","misureFiltro","tipologiaPrefiltro","misurePrefiltro","note"].forEach(function (fid) {
+    document.getElementById(fid).value = "";
+  });
+  document.getElementById("stato").value = "Attivo";
+  document.getElementById("filtroFields").classList.remove("show");
+  document.getElementById("prefiltroFields").classList.remove("show");
+  document.querySelector('input[name="haSistemaFiltrante"][value="no"]').checked = true;
+  document.querySelector('input[name="haPrefiltro"][value="no"]').checked = true;
+  if (id) {
+    var item = null;
+    for (var i = 0; i < equipment.length; i++) if (equipment[i].id === id) { item = equipment[i]; break; }
+    if (!item) return;
+    document.getElementById("modalTitle").textContent = "Modifica strumentazione";
+    document.getElementById("editId").value = item.id;
+    document.getElementById("serialNumber").value = item.serialNumber || "";
+    document.getElementById("idDispositivo").value = item.idDispositivo || "";
+    document.getElementById("tipo").value = item.tipo || "";
+    document.getElementById("marca").value = item.marca || "";
+    document.getElementById("modello").value = item.modello || "";
+    document.getElementById("ubicazione").value = item.ubicazione || "";
+    document.getElementById("stato").value = item.stato || "Attivo";
+    document.getElementById("ultimaMan").value = item.ultimaMan || "";
+    document.getElementById("prossimaMan").value = item.prossimaMan || "";
+    document.getElementById("responsabile").value = item.responsabile || "";
+    document.getElementById("note").value = item.note || "";
+    if (item.haSistemaFiltrante === "si") {
+      document.querySelector('input[name="haSistemaFiltrante"][value="si"]').checked = true;
+      document.getElementById("tipologiaFiltro").value = item.tipologiaFiltro || "";
+      document.getElementById("misureFiltro").value = item.misureFiltro || "";
+      document.getElementById("filtroFields").classList.add("show");
+    }
+    if (item.haPrefiltro === "si") {
+      document.querySelector('input[name="haPrefiltro"][value="si"]').checked = true;
+      document.getElementById("tipologiaPrefiltro").value = item.tipologiaPrefiltro || "";
+      document.getElementById("misurePrefiltro").value = item.misurePrefiltro || "";
+      document.getElementById("prefiltroFields").classList.add("show");
+    }
+  } else {
+    document.getElementById("modalTitle").textContent = "Nuova strumentazione";
+  }
+}
+function closeModal() {
+  document.getElementById("modal").classList.remove("show");
+  clearFieldErrors();
+}
+
+function saveEquipment() {
+  if (!isAdmin()) return;
+  if (!validateEquipment()) {
+    showToast("Correggi gli errori evidenziati");
+    return;
+  }
+  var id = document.getElementById("editId").value;
+  var serialNumber = document.getElementById("serialNumber").value.trim();
+  var idDispositivo = document.getElementById("idDispositivo").value.trim();
+  var haF = document.querySelector('input[name="haSistemaFiltrante"]:checked');
+  var haP = document.querySelector('input[name="haPrefiltro"]:checked');
+  var haSistemaFiltrante = haF ? haF.value : "no";
+  var haPrefiltro = haP ? haP.value : "no";
+  var data = {
+    serialNumber: serialNumber,
+    idDispositivo: idDispositivo,
+    tipo: document.getElementById("tipo").value,
+    marca: document.getElementById("marca").value.trim(),
+    modello: document.getElementById("modello").value.trim(),
+    ubicazione: document.getElementById("ubicazione").value.trim(),
+    stato: document.getElementById("stato").value,
+    ultimaMan: document.getElementById("ultimaMan").value,
+    prossimaMan: document.getElementById("prossimaMan").value,
+    responsabile: document.getElementById("responsabile").value.trim(),
+    haSistemaFiltrante: haSistemaFiltrante,
+    tipologiaFiltro: haSistemaFiltrante === "si" ? document.getElementById("tipologiaFiltro").value.trim() : "",
+    misureFiltro: haSistemaFiltrante === "si" ? document.getElementById("misureFiltro").value.trim() : "",
+    haPrefiltro: haPrefiltro,
+    tipologiaPrefiltro: haPrefiltro === "si" ? document.getElementById("tipologiaPrefiltro").value.trim() : "",
+    misurePrefiltro: haPrefiltro === "si" ? document.getElementById("misurePrefiltro").value.trim() : "",
+    note: document.getElementById("note").value.trim(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  for (var i = 0; i < equipment.length; i++) {
+    if (equipment[i].id !== id) {
+      if ((equipment[i].serialNumber || "").toLowerCase() === serialNumber.toLowerCase()) {
+        showFieldError("serialNumber", "Serial Number già esistente");
+        return;
+      }
+      if ((equipment[i].idDispositivo || "").toLowerCase() === idDispositivo.toLowerCase()) {
+        showFieldError("idDispositivo", "ID Dispositivo già esistente");
+        return;
+      }
+    }
+  }
+  var p = id
+    ? db.collection("equipment").doc(id).set(data, { merge: true })
+    : db.collection("equipment").add(Object.assign({}, data, { createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
+  p.then(function () {
+    showToast(id ? "Aggiornato" : "Aggiunto");
+    closeModal();
+  }).catch(function (err) {
+    alert("Errore salvataggio: " + err.message);
+  });
+}
+function editEquipment(id) { openModal(id); }
+function deleteEquipment(id) {
+  if (!isAdmin()) return;
+  if (!confirm("Eliminare questa strumentazione?")) return;
+  db.collection("equipment").doc(id).delete()
+    .then(function () { showToast("Eliminato"); })
+    .catch(function (err) { alert("Errore: " + err.message); });
+}
+
+function openUsersModal() {
+  if (!isAdmin()) return;
+  renderUsersTable();
+  document.getElementById("usersModal").classList.add("show");
+}
+function closeUsersModal() { document.getElementById("usersModal").classList.remove("show"); }
+function renderUsersTable() {
+  var html = "";
+  users.forEach(function (u) {
+    var roleBadge = u.role === "admin" ? '<span class="badge badge-purple">Admin</span>' : '<span class="badge badge-gray">Visualizzatore</span>';
+    html += "<tr><td><strong>" + u.username + "</strong></td><td>" + (u.nome || "—") + "</td><td>" + roleBadge + '</td><td style="text-align:center">' +
+      '<button class="btn-icon edit" onclick="editUser(\'' + u.id + '\')"><i class="fas fa-pen"></i></button> ' +
+      (u.username !== "admin" ? '<button class="btn-icon delete" onclick="deleteUser(\'' + u.id + '\')"><i class="fas fa-trash"></i></button>' : "") +
+      "</td></tr>";
+  });
+  document.getElementById("usersTableBody").innerHTML = html;
+}
+function openUserForm() {
+  document.getElementById("editUserId").value = "";
+  document.getElementById("userUsername").value = "";
+  document.getElementById("userNome").value = "";
+  document.getElementById("userPassword").value = "";
+  document.getElementById("userRole").value = "viewer";
+  document.getElementById("userFormTitle").textContent = "Nuovo utente";
+  document.getElementById("userFormModal").classList.add("show");
+}
+function editUser(id) {
+  var u = null;
+  for (var i = 0; i < users.length; i++) if (users[i].id === id) { u = users[i]; break; }
+  if (!u) return;
+  document.getElementById("editUserId").value = u.id;
+  document.getElementById("userUsername").value = u.username;
+  document.getElementById("userNome").value = u.nome || "";
+  document.getElementById("userPassword").value = u.password || "";
+  document.getElementById("userRole").value = u.role;
+  document.getElementById("userFormTitle").textContent = "Modifica utente";
+  document.getElementById("userFormModal").classList.add("show");
+}
+function closeUserForm() { document.getElementById("userFormModal").classList.remove("show"); }
+function saveUser() {
+  var id = document.getElementById("editUserId").value;
+  var username = document.getElementById("userUsername").value.trim();
+  var nome = document.getElementById("userNome").value.trim();
+  var password = document.getElementById("userPassword").value;
+  var role = document.getElementById("userRole").value;
+  if (!username) { alert("Inserisci username"); return; }
+  if (!password || password.length < 4) { alert("Password minimo 4 caratteri"); return; }
+  for (var i = 0; i < users.length; i++) {
+    if (users[i].id !== id && users[i].username.toLowerCase() === username.toLowerCase()) {
+      alert("Username già esistente");
+      return;
+    }
+  }
+  var data = { username: username, nome: nome, password: password, role: role };
+  var p = id
+    ? db.collection("users").doc(id).set(data, { merge: true })
+    : db.collection("users").add(Object.assign({}, data, { createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
+  p.then(function () {
+    showToast(id ? "Utente aggiornato" : "Utente creato");
+    closeUserForm();
+  }).catch(function (err) {
+    alert("Errore: " + err.message);
+  });
+}
+function deleteUser(id) {
+  if (!confirm("Eliminare questo utente?")) return;
+  if (currentUser && currentUser.id === id) { alert("Non puoi eliminare te stesso"); return; }
+  db.collection("users").doc(id).delete()
+    .then(function () { showToast("Utente eliminato"); })
+    .catch(function (err) { alert("Errore: " + err.message); });
+}
+
+function exportData() {
+  var blob = new Blob([JSON.stringify(equipment, null, 2)], { type: "application/json" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "strumentazione_lab_" + new Date().toISOString().slice(0, 10) + ".json";
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast("JSON esportato");
+}
+function exportExcel() {
+  if (!equipment.length) { alert("Nessun dato"); return; }
+  var rows = [["Serial Number","ID Dispositivo","Tipo","Marca","Modello","Ubicazione","Stato","Ultima man.","Prossima man.","Responsabile","Sistema filtrante","Tipologia filtro","Misure filtro","Prefiltro","Tipologia prefiltro","Misure prefiltro","Note"]];
+  equipment.forEach(function (e) {
+    rows.push([
+      e.serialNumber || "", e.idDispositivo || "", e.tipo || "", e.marca || "", e.modello || "",
+      e.ubicazione || "", e.stato || "", e.ultimaMan || "", e.prossimaMan || "", e.responsabile || "",
+      e.haSistemaFiltrante === "si" ? "Sì" : "No", e.tipologiaFiltro || "", e.misureFiltro || "",
+      e.haPrefiltro === "si" ? "Sì" : "No", e.tipologiaPrefiltro || "", e.misurePrefiltro || "", e.note || ""
+    ]);
+  });
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Strumentazione");
+  XLSX.writeFile(wb, "strumentazione_lab_" + new Date().toISOString().slice(0, 10) + ".xlsx");
+  showToast("Excel esportato");
+}
+function importData(event) {
+  if (!isAdmin()) return;
+  var file = event.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      var data = JSON.parse(e.target.result);
+      if (!Array.isArray(data)) throw new Error("Formato non valido");
+      if (!confirm("Importare " + data.length + " record? I dati attuali verranno sostituiti.")) return;
+      db.collection("equipment").get().then(function (snap) {
+        var batch = db.batch();
+        snap.forEach(function (doc) { batch.delete(doc.ref); });
+        return batch.commit();
+      }).then(function () {
+        var adds = data.map(function (item) {
+          var copy = Object.assign({}, item);
+          delete copy.id;
+          return db.collection("equipment").add(copy);
+        });
+        return Promise.all(adds);
+      }).then(function () {
+        showToast("Import JSON completato");
+      }).catch(function (err) {
+        alert("Errore import: " + err.message);
+      });
+    } catch (err) {
+      alert("Errore: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+function findColumn(headers, names) {
+  for (var i = 0; i < headers.length; i++) {
+    var h = String(headers[i] || "").toLowerCase().trim();
+    for (var j = 0; j < names.length; j++) if (h.indexOf(names[j]) > -1) return i;
+  }
+  return -1;
+}
+function importExcel(event) {
+  if (!isAdmin()) return;
+  var file = event.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      var data = new Uint8Array(e.target.result);
+      var workbook = XLSX.read(data, { type: "array", cellDates: true });
+      var rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
+      if (rows.length < 2) { alert("File senza dati"); return; }
+      var headers = rows[0];
+      var colSerial = findColumn(headers, ["serial number", "matricola", "serial"]);
+      var colId = findColumn(headers, ["id dispositivo", "id", "codice"]);
+      var colTipo = findColumn(headers, ["tipo", "type"]);
+      var colMarca = findColumn(headers, ["marca", "brand"]);
+      var colModello = findColumn(headers, ["modello", "model"]);
+      var colUbic = findColumn(headers, ["ubicazione", "location"]);
+      var colStato = findColumn(headers, ["stato", "status"]);
+      var colUltima = findColumn(headers, ["ultima man", "ultima manutenzione"]);
+      var colProssima = findColumn(headers, ["prossima man", "prossima manutenzione"]);
+      var colResp = findColumn(headers, ["responsabile"]);
+      var colFiltro = findColumn(headers, ["sistema filtrante"]);
+      var colTipoFilt = findColumn(headers, ["tipologia filtro"]);
+      var colMisFilt = findColumn(headers, ["misure filtro"]);
+      var colPre = findColumn(headers, ["prefiltro"]);
+      var colTipoPre = findColumn(headers, ["tipologia prefiltro"]);
+      var colMisPre = findColumn(headers, ["misure prefiltro"]);
+      var colNote = findColumn(headers, ["note"]);
+      if (colSerial === -1 && colId === -1) { alert("Colonne Serial/ID non trovate"); return; }
+      var imported = [];
+      for (var r = 1; r < rows.length; r++) {
+        var row = rows[r];
+        var serial = colSerial > -1 ? String(row[colSerial] || "").trim() : "";
+        var idDisp = colId > -1 ? String(row[colId] || "").trim() : "";
+        if (!serial && !idDisp) continue;
+        if (!serial) serial = "SN-IMP-" + r;
+        if (!idDisp) idDisp = "ID-IMP-" + r;
+        var tipoVal = colTipo > -1 ? String(row[colTipo] || "").trim() : "Cappa chimica";
+        var tl = tipoVal.toLowerCase();
+        if (tl.indexOf("cappa chim") > -1) tipoVal = "Cappa chimica";
+        else if (tl.indexOf("armadietto aspir") > -1) tipoVal = "Armadietto aspirato";
+        else if (tl.indexOf("non aspir") > -1) tipoVal = "Armadietto non aspirato";
+        else if (tl.indexOf("sicurezza") > -1) tipoVal = "Armadio di sicurezza";
+        else if (tl.indexOf("filtrazione") > -1) tipoVal = "Cappa a filtrazione";
+        else if (tl.indexOf("halo") > -1) tipoVal = "HALO";
+        var statoVal = "Attivo";
+        if (colStato > -1) {
+          var sl = String(row[colStato] || "").toLowerCase();
+          if (sl.indexOf("manut") > -1) statoVal = "In manutenzione";
+          else if (sl.indexOf("fuori") > -1) statoVal = "Fuori servizio";
+        }
+        var haF = "no", haP = "no";
+        if (colFiltro > -1) {
+          var fv = String(row[colFiltro] || "").toLowerCase();
+          if (fv === "si" || fv === "sì" || fv === "yes" || fv === "1") haF = "si";
+        }
+        if (colPre > -1) {
+          var pv = String(row[colPre] || "").toLowerCase();
+          if (pv === "si" || pv === "sì" || pv === "yes" || pv === "1") haP = "si";
+        }
+        imported.push({
+          serialNumber: serial,
+          idDispositivo: idDisp,
+          tipo: tipoVal,
+          marca: colMarca > -1 ? String(row[colMarca] || "").trim() : "",
+          modello: colModello > -1 ? String(row[colModello] || "").trim() : "",
+          ubicazione: colUbic > -1 ? String(row[colUbic] || "").trim() : "Non specificata",
+          stato: statoVal,
+          ultimaMan: colUltima > -1 ? normalizeDate(row[colUltima]) : "",
+          prossimaMan: colProssima > -1 ? normalizeDate(row[colProssima]) : "",
+          responsabile: colResp > -1 ? String(row[colResp] || "").trim() : "",
+          haSistemaFiltrante: haF,
+          tipologiaFiltro: colTipoFilt > -1 ? String(row[colTipoFilt] || "").trim() : "",
+          misureFiltro: colMisFilt > -1 ? String(row[colMisFilt] || "").trim() : "",
+          haPrefiltro: haP,
+          tipologiaPrefiltro: colTipoPre > -1 ? String(row[colTipoPre] || "").trim() : "",
+          misurePrefiltro: colMisPre > -1 ? String(row[colMisPre] || "").trim() : "",
+          note: colNote > -1 ? String(row[colNote] || "").trim() : "",
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      if (!imported.length) { alert("Nessun record valido"); return; }
+      var replace = confirm("Trovati " + imported.length + " dispositivi.\n\nOK = Sostituisci tutto\nAnnulla = Aggiungi");
+      var chain = Promise.resolve();
+      if (replace) {
+        chain = db.collection("equipment").get().then(function (snap) {
+          var batch = db.batch();
+          snap.forEach(function (doc) { batch.delete(doc.ref); });
+          return batch.commit();
+        });
+      }
+      chain.then(function () {
+        return Promise.all(imported.map(function (item) { return db.collection("equipment").add(item); }));
+      }).then(function () {
+        showToast("Import Excel completato");
+      }).catch(function (err) {
+        alert("Errore Excel: " + err.message);
+      });
+    } catch (err) {
+      alert("Errore lettura Excel: " + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = "";
+}
+
+/* ===================== AVVIO ===================== */
+(function initApp() {
+  try {
+    if (typeof firebase === "undefined") {
+      showLoadError("SDK Firebase non caricato. Controlla la connessione internet.");
+      return;
+    }
+    if (!firebaseConfig.apiKey || firebaseConfig.apiKey.indexOf("INCOLLA_QUI") === 0) {
+      showLoadError("Inserisci il tuo firebaseConfig reale nel file HTML prima di pubblicare.");
+      return;
+    }
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    db.enablePersistence({ synchronizeTabs: true }).catch(function () {});
+    ensureAdminExists()
+      .then(function () {
+        hideLoading();
+        checkSession();
+      })
+      .catch(function (err) {
+        console.error(err);
+        showLoadError("Errore Firebase: " + (err && err.message ? err.message : String(err)) +
+          " — Verifica che Firestore sia creato e le regole permettano lettura/scrittura.");
+      });
+  } catch (err) {
+    console.error(err);
+    showLoadError("Errore inizializzazione: " + (err && err.message ? err.message : String(err)));
+  }
+})();
+
+document.getElementById("loginPassword").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") doLogin();
+});
+document.getElementById("loginUsername").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") document.getElementById("loginPassword").focus();
+});
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") {
+    closeModal();
+    closeUsersModal();
+    closeUserForm();
+  }
+});
+</script>
+</body>
+</html>
