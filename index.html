@@ -1421,7 +1421,7 @@ function importExcel(event){
     firebase.initializeApp(firebaseConfig);
     db=firebase.firestore();
     storage=firebase.storage();
-    db.enablePersistence({synchronizeTabs:true}).catch(function(){});
+   // db.enablePersistence({synchronizeTabs:true}).catch(function(){});
     ensureAdminExists().then(function(){ hideLoading(); checkSession(); })
       .catch(function(err){ showLoadError("Errore Firebase: "+(err.message||err)); });
   }catch(err){ showLoadError("Errore: "+(err.message||err)); }
