@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestione Strumentazione Laboratorio</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',system-ui,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh;line-height:1.5}
+    .login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);display:flex;align-items:center;justify-content:center;z-index:1000}
+    .login-screen.hidden{display:none}
+    .login-box{background:#fff;border-radius:1rem;padding:2.5rem;width:100%;max-width:400px;box-shadow:0 25px 50px -12px rgba(0,0,0,.4)}
+    .login-logo{text-align:center;margin-bottom:2rem}
+    .login-logo i{font-size:2.5rem;color:#059669;margin-bottom:.75rem}
+    .login-logo h1{font-size:1.35rem;font-weight:700;color:#0f172a}
+    .login-logo p{font-size:.85rem;color:#64748b;margin-top:.25rem}
+    .login-error{background:#fef2f2;color:#b91c1c;padding:.75rem;border-radius:.5rem;font-size:.875rem;margin-bottom:1rem;display:none}
+    .login-error.show{display:block}
+    .form-group{margin-bottom:1.1rem}
+    .form-group label{display:block;font-size:.8rem;font-weight:500;color:#475569;margin-bottom:.3rem}
+    .form-group input,.form-group select{width:100%;padding:.7rem .9rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:.95rem;outline:none}
+    .form-group input:focus,.form-group select:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+    .btn-login{width:100%;padding:.8rem;background:#059669;color:#fff;border:none;border-radius:.5rem;font-size:1rem;font-weight:600;cursor:pointer;margin-top:.5rem}
+    .btn-login:hover{background:#047857}
+    .login-hint{text-align:center;font-size:.75rem;color:#94a3b8;margin-top:1.25rem}
+    .app{display:none}.app.show{display:block}
+    .header{background:linear-gradient(to right,#1e293b,#0f172a);color:#fff}
+    .header-inner{max-width:1500px;margin:0 auto;padding:1rem 1.5rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem}
+    .logo{display:flex;align-items:center;gap:.75rem}
+    .logo-icon{background:rgba(16,185,129,.2);padding:.6rem;border-radius:.75rem}
+    .logo-icon i{color:#34d399;font-size:1.25rem}
+    .logo h1{font-size:1.25rem;font-weight:700}.logo p{font-size:.75rem;color:#94a3b8}
+    .header-actions{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+    .user-badge{background:rgba(255,255,255,.1);padding:.4rem .8rem;border-radius:.5rem;font-size:.8rem;display:flex;align-items:center;gap:.4rem}
+    .user-badge .role{font-size:.7rem;opacity:.8}
+    .btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .9rem;border-radius:.5rem;font-size:.875rem;font-weight:500;border:none;cursor:pointer;color:#fff}
+    .btn-secondary{background:#334155}.btn-secondary:hover{background:#475569}
+    .btn-primary{background:#059669}.btn-primary:hover{background:#10b981}
+    .btn-danger{background:#dc2626}.btn-danger:hover{background:#b91c1c}
+    .btn-excel{background:#15803d}.btn-excel:hover{background:#166534}
+    .btn-email{background:#7c3aed}.btn-email:hover{background:#6d28d9}
+    .sync-badge{background:rgba(16,185,129,.2);color:#34d399;padding:.25rem .6rem;border-radius:.4rem;font-size:.7rem;margin-left:.4rem}
+    .expiry-alert{display:none;background:#fff7ed;border-bottom:1px solid #fdba74;color:#9a3412;font-size:.875rem}
+    .expiry-alert.show{display:block}
+    .expiry-alert.danger{background:#fef2f2;border-bottom-color:#fca5a5;color:#991b1b}
+    .expiry-alert-inner{max-width:1500px;margin:0 auto;padding:.75rem 1.5rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+    .expiry-alert .btn-sm{background:#c2410c;color:#fff;border:none;padding:.35rem .75rem;border-radius:.4rem;font-size:.8rem;cursor:pointer}
+    .expiry-alert.danger .btn-sm{background:#b91c1c}
+    .main{max-width:1500px;margin:0 auto;padding:1.5rem}
+    .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;margin-bottom:1.5rem}
+    @media(min-width:768px){.stats{grid-template-columns:repeat(6,1fr)}}
+    .stat-card{background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;padding:1rem}
+    .stat-value{font-size:1.5rem;font-weight:700}.stat-label{font-size:.75rem;color:#64748b;margin-top:2px}
+    .stat-green{color:#059669}.stat-amber{color:#d97706}.stat-rose{color:#e11d48}.stat-orange{color:#ea580c}.stat-red{color:#dc2626}
+    .filters{background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;padding:1rem;margin-bottom:1.5rem}
+    .filters-inner{display:flex;flex-direction:column;gap:.75rem}
+    @media(min-width:768px){.filters-inner{flex-direction:row}}
+    .search-wrap{position:relative;flex:1}
+    .search-wrap i{position:absolute;left:.75rem;top:50%;transform:translateY(-50%);color:#94a3b8}
+    .search-wrap input{width:100%;padding:.6rem 1rem .6rem 2.4rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:.875rem;outline:none}
+    .search-wrap input:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+    select{padding:.6rem .75rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:.875rem;background:#fff;outline:none;min-width:150px}
+    select:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+    .table-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;overflow:hidden}
+    .table-scroll{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:.875rem}
+    thead{background:#f8fafc;border-bottom:1px solid #e2e8f0}
+    th{text-align:left;padding:.75rem .9rem;font-weight:600;color:#475569;white-space:nowrap}
+    tbody tr{border-bottom:1px solid #f1f5f9}tbody tr:hover{background:#f8fafc}
+    tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
+    td{padding:.75rem .9rem;vertical-align:middle}
+    .code{font-family:monospace;font-weight:500}
+    .tipo-cell{display:flex;align-items:center;gap:.4rem}.tipo-cell i{color:#94a3b8;font-size:.75rem}
+    .truncate{max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .badge{display:inline-block;font-size:.7rem;padding:.2rem .55rem;border-radius:9999px;font-weight:500}
+    .badge-green{background:#d1fae5;color:#047857}.badge-amber{background:#fef3c7;color:#b45309}
+    .badge-rose{background:#ffe4e6;color:#be123c}.badge-blue{background:#dbeafe;color:#1d4ed8}
+    .badge-gray{background:#f1f5f9;color:#64748b}.badge-purple{background:#f3e8ff;color:#7e22ce}
+    .overdue{color:#dc2626;font-weight:600}.soon{color:#ea580c;font-weight:600}
+    .actions{display:flex;justify-content:center;gap:.25rem}
+    .btn-icon{padding:.45rem;border:none;background:transparent;border-radius:.4rem;cursor:pointer;color:#94a3b8}
+    .btn-icon.edit:hover{color:#059669;background:#ecfdf5}
+    .btn-icon.delete:hover{color:#e11d48;background:#fff1f2}
+    .btn-icon.history:hover{color:#7c3aed;background:#f5f3ff}
+    .empty{display:none;padding:4rem 1rem;text-align:center;color:#94a3b8}.empty.show{display:block}
+    .empty i{font-size:2.5rem;opacity:.5;margin-bottom:.75rem}
+    .empty button{margin-top:.75rem;background:none;border:none;color:#059669;font-size:.875rem;font-weight:500;cursor:pointer;text-decoration:underline}
+    .footer-note{font-size:.75rem;color:#94a3b8;text-align:center;margin-top:1rem}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:50;display:none;align-items:center;justify-content:center;padding:1rem}
+    .modal-overlay.show{display:flex}
+    .modal{background:#fff;border-radius:1rem;width:100%;max-width:48rem;max-height:92vh;overflow-y:auto;box-shadow:0 25px 50px -12px rgba(0,0,0,.25)}
+    .modal-lg{max-width:56rem}
+    .modal-sm{max-width:420px}
+    .modal-header{position:sticky;top:0;background:#fff;border-bottom:1px solid #f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;z-index:10}
+    .modal-header h2{font-size:1.125rem;font-weight:700}
+    .modal-close{background:none;border:none;color:#94a3b8;font-size:1.25rem;cursor:pointer}
+    .modal-body{padding:1.5rem}
+    .form-grid{display:grid;grid-template-columns:1fr;gap:1rem}
+    @media(min-width:640px){.form-grid{grid-template-columns:1fr 1fr}}
+    .form-group.full{grid-column:1/-1}
+    label{display:block;font-size:.75rem;font-weight:500;color:#475569;margin-bottom:.25rem}
+    input[type=text],input[type=password],input[type=date],input[type=url],select,textarea{width:100%;padding:.6rem .75rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:.875rem;outline:none;font-family:inherit}
+    input:focus,select:focus,textarea:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+    textarea{resize:vertical;min-height:70px}
+    .field-error{color:#ef4444;font-size:.75rem;margin-top:.3rem}
+    input.error,select.error,textarea.error{border-color:#ef4444!important;box-shadow:0 0 0 3px rgba(239,68,68,.15)!important}
+    .radio-group{display:flex;gap:1.5rem;margin-top:.3rem}
+    .radio-option{display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer}
+    .radio-option input{width:auto;margin:0}
+    .conditional-fields{display:none;grid-column:1/-1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:.5rem;padding:1rem;margin-top:.25rem}
+    .conditional-fields.show{display:block}
+    .conditional-fields .inner-grid{display:grid;grid-template-columns:1fr;gap:1rem}
+    @media(min-width:640px){.conditional-fields .inner-grid{grid-template-columns:1fr 1fr}}
+    .form-actions{display:flex;justify-content:flex-end;gap:.75rem;margin-top:1.5rem}
+    .btn-cancel{padding:.6rem 1.25rem;border-radius:.5rem;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:.875rem;font-weight:500;cursor:pointer}
+    .btn-cancel:hover{background:#f8fafc}
+    .btn-save{padding:.6rem 1.25rem;border-radius:.5rem;border:none;background:#059669;color:#fff;font-size:.875rem;font-weight:500;cursor:pointer}
+    .btn-save:hover{background:#10b981}
+    .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#1e293b;color:#fff;padding:.75rem 1.25rem;border-radius:.75rem;font-size:.875rem;display:none;align-items:center;gap:.5rem;z-index:60;box-shadow:0 10px 15px -3px rgba(0,0,0,.1)}
+    .toast.show{display:flex}.toast i{color:#34d399}
+    .users-table{width:100%;border-collapse:collapse;font-size:.875rem;margin-top:1rem}
+    .users-table th{text-align:left;padding:.6rem;background:#f8fafc;border-bottom:1px solid #e2e8f0}
+    .users-table td{padding:.6rem;border-bottom:1px solid #f1f5f9}
+    .reminder-box{background:#fffbeb;border:1px solid #fde68a;border-radius:.5rem;padding:.85rem 1rem;margin-bottom:1.25rem;font-size:.875rem;color:#92400e;display:flex;gap:.6rem;align-items:flex-start}
+    .loading-overlay{position:fixed;inset:0;background:rgba(15,23,42,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2000;color:#fff;font-size:1.05rem;gap:.75rem;text-align:center;padding:1.5rem}
+    .loading-overlay.hidden{display:none}
+    .loading-overlay .err{color:#fca5a5;font-size:.9rem;max-width:520px;margin-top:.5rem}
+    .device-info{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.5rem;padding:.85rem 1rem;margin-bottom:1.25rem;font-size:.875rem}
+    .device-info strong{color:#0f172a}
+    .history-table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.75rem}
+    .history-table th{text-align:left;padding:.55rem .6rem;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:.75rem;color:#475569}
+    .history-table td{padding:.55rem .6rem;border-bottom:1px solid #f1f5f9;vertical-align:top}
+    .history-empty{text-align:center;color:#94a3b8;padding:1.5rem;font-size:.875rem}
+    .section-title{font-size:.95rem;font-weight:600;margin:1.25rem 0 .75rem;color:#0f172a;display:flex;align-items:center;gap:.5rem}
+    .checkbox-row{display:flex;align-items:center;gap:.5rem;font-size:.875rem;margin-top:.5rem}
+    .checkbox-row input{width:auto}
+  </style>
+</head>
+<body>
+
+<div id="loadingOverlay" class="loading-overlay">
+  <div><i class="fas fa-spinner fa-spin"></i> Connessione a Firebase...</div>
+  <div id="loadingError" class="err"></div>
+</div>
+
+<div id="loginScreen" class="login-screen hidden">
+  <div class="login-box">
+    <div class="login-logo">
+      <i class="fas fa-flask"></i>
+      <h1>Gestione Strumentazione</h1>
+      <p>Laboratorio • Sincronizzato in tempo reale</p>
+    </div>
+    <div id="loginError" class="login-error"></div>
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="loginUsername" placeholder="Inserisci username" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Inserisci password" autocomplete="current-password">
+    </div>
+    <button class="btn-login" onclick="doLogin()">Accedi</button>
+    <p class="login-hint">Default: admin / admin123</p>
+  </div>
+</div>
+
+<div id="app" class="app">
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon"><i class="fas fa-flask"></i></div>
+        <div>
+          <h1>Gestione Strumentazione <span class="sync-badge"><i class="fas fa-cloud"></i> Live</span></h1>
+          <p>Cappe • Armadi • Armadietti • Sicurezza • HALO</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="user-badge">
+          <i class="fas fa-user"></i>
+          <span id="currentUserName">—</span>
+          <span class="role" id="currentUserRole"></span>
+        </div>
+        <button class="btn btn-secondary" id="btnUsers" onclick="openUsersModal()" style="display:none"><i class="fas fa-users"></i> Utenti</button>
+        <button class="btn btn-email" id="btnEmail" onclick="sendExpiryEmail(true)" style="display:none"><i class="fas fa-envelope"></i> Invia avviso</button>
+        <button class="btn btn-secondary" onclick="exportData()"><i class="fas fa-download"></i> JSON</button>
+        <button class="btn btn-excel" onclick="exportExcel()"><i class="fas fa-file-excel"></i> Excel</button>
+        <label class="btn btn-secondary" id="btnImport" style="cursor:pointer;display:none">
+          <i class="fas fa-upload"></i> Importa JSON
+          <input type="file" accept=".json" style="display:none" onchange="importData(event)">
+        </label>
+        <label class="btn btn-excel" id="btnImportExcel" style="cursor:pointer;display:none">
+          <i class="fas fa-file-excel"></i> Importa Excel
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importExcel(event)">
+        </label>
+        <button class="btn btn-primary" id="btnNuovo" onclick="openModal()" style="display:none"><i class="fas fa-plus"></i> Nuovo</button>
+        <button class="btn btn-danger" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Esci</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="expiryAlert" class="expiry-alert">
+    <div class="expiry-alert-inner">
+      <i class="fas fa-exclamation-triangle"></i>
+      <div id="expiryAlertText"></div>
+      <button class="btn-sm" onclick="filterExpiring()">Mostra solo questi</button>
+    </div>
+  </div>
+
+  <main class="main">
+    <div class="stats" id="statsContainer"></div>
+    <div class="filters">
+      <div class="filters-inner">
+        <div class="search-wrap">
+          <i class="fas fa-search"></i>
+          <input type="text" id="searchInput" placeholder="Cerca..." oninput="renderTable()">
+        </div>
+        <select id="filterTipo" onchange="renderTable()">
+          <option value="">Tutti i tipi</option>
+          <option value="Cappa chimica">Cappe chimiche</option>
+          <option value="Armadietto aspirato">Armadietti aspirati</option>
+          <option value="Armadietto non aspirato">Armadietti non aspirati</option>
+          <option value="Armadio di sicurezza">Armadi di sicurezza</option>
+          <option value="Cappa a filtrazione">Cappe a filtrazione</option>
+          <option value="HALO">HALO</option>
+        </select>
+        <select id="filterStato" onchange="renderTable()">
+          <option value="">Tutti gli stati</option>
+          <option value="Attivo">Attivo</option>
+          <option value="In manutenzione">In manutenzione</option>
+          <option value="Fuori servizio">Fuori servizio</option>
+        </select>
+        <select id="filterScadenza" onchange="renderTable()">
+          <option value="">Tutte le scadenze</option>
+          <option value="scaduti">Solo scaduti</option>
+          <option value="in_scadenza">In scadenza (30 gg)</option>
+          <option value="ok">In regola</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Serial Number</th>
+              <th>ID Dispositivo</th>
+              <th>Tipo</th>
+              <th>Modello / Marca</th>
+              <th>Ubicazione</th>
+              <th>Sistema filtrante</th>
+              <th>Prefiltro</th>
+              <th>Stato</th>
+              <th>Ultima man.</th>
+              <th>Prossima man.</th>
+              <th>Responsabile</th>
+              <th id="thAzioni">Azioni</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty">
+        <i class="fas fa-inbox"></i>
+        <p>Nessuna strumentazione trovata</p>
+        <button id="btnEmptyAdd" onclick="openModal()" style="display:none">Aggiungi la prima</button>
+      </div>
+    </div>
+    <p class="footer-note">Dati sincronizzati in tempo reale con Firebase. Storico manutenzioni disponibile su ogni DPC.</p>
+  </main>
+</div>
+
+<!-- Modal dispositivo -->
+<div id="modal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Nuova strumentazione</h2>
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="reminder-box">
+        <i class="fas fa-info-circle" style="margin-top:2px;flex-shrink:0"></i>
+        <div><strong>Promemoria:</strong> se manca un dato obbligatorio, inserisci <strong>N.A.</strong></div>
+      </div>
+      <input type="hidden" id="editId">
+      <div class="form-grid">
+        <div class="form-group"><label>Serial Number *</label><input type="text" id="serialNumber"></div>
+        <div class="form-group"><label>ID Dispositivo *</label><input type="text" id="idDispositivo"></div>
+        <div class="form-group">
+          <label>Tipo *</label>
+          <select id="tipo">
+            <option value="">Seleziona...</option>
+            <option value="Cappa chimica">Cappa chimica</option>
+            <option value="Armadietto aspirato">Armadietto aspirato</option>
+            <option value="Armadietto non aspirato">Armadietto non aspirato</option>
+            <option value="Armadio di sicurezza">Armadio di sicurezza</option>
+            <option value="Cappa a filtrazione">Cappa a filtrazione</option>
+            <option value="HALO">HALO</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Marca</label><input type="text" id="marca"></div>
+        <div class="form-group"><label>Modello</label><input type="text" id="modello"></div>
+        <div class="form-group"><label>Ubicazione *</label><input type="text" id="ubicazione"></div>
+        <div class="form-group">
+          <label>Stato *</label>
+          <select id="stato">
+            <option value="Attivo">Attivo</option>
+            <option value="In manutenzione">In manutenzione</option>
+            <option value="Fuori servizio">Fuori servizio</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Ultima manutenzione</label><input type="date" id="ultimaMan"></div>
+        <div class="form-group"><label>Prossima manutenzione</label><input type="date" id="prossimaMan"></div>
+        <div class="form-group full"><label>Responsabile</label><input type="text" id="responsabile"></div>
+        <div class="form-group full">
+          <label>Sistema filtrante?</label>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="haSistemaFiltrante" value="si" onchange="toggleFiltroFields()"> Sì</label>
+            <label class="radio-option"><input type="radio" name="haSistemaFiltrante" value="no" onchange="toggleFiltroFields()" checked> No</label>
+          </div>
+        </div>
+        <div id="filtroFields" class="conditional-fields">
+          <div class="inner-grid">
+            <div class="form-group"><label>Tipologia filtro *</label><input type="text" id="tipologiaFiltro" placeholder="oppure N.A."></div>
+            <div class="form-group"><label>Misure filtro *</label><input type="text" id="misureFiltro" placeholder="oppure N.A."></div>
+          </div>
+        </div>
+        <div class="form-group full">
+          <label>Prefiltro?</label>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="haPrefiltro" value="si" onchange="togglePrefiltroFields()"> Sì</label>
+            <label class="radio-option"><input type="radio" name="haPrefiltro" value="no" onchange="togglePrefiltroFields()" checked> No</label>
+          </div>
+        </div>
+        <div id="prefiltroFields" class="conditional-fields">
+          <div class="inner-grid">
+            <div class="form-group"><label>Tipologia prefiltro *</label><input type="text" id="tipologiaPrefiltro" placeholder="oppure N.A."></div>
+            <div class="form-group"><label>Misure prefiltro *</label><input type="text" id="misurePrefiltro" placeholder="oppure N.A."></div>
+          </div>
+        </div>
+        <div class="form-group full"><label>Note</label><textarea id="note" rows="3"></textarea></div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-cancel" onclick="closeModal()">Annulla</button>
+        <button type="button" class="btn-save" onclick="saveEquipment()"><i class="fas fa-save"></i> Salva</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal storico manutenzioni -->
+<div id="historyModal" class="modal-overlay">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2><i class="fas fa-history" style="margin-right:.4rem;color:#7c3aed"></i> Storico manutenzioni</h2>
+      <button class="modal-close" onclick="closeHistoryModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="device-info" id="historyDeviceInfo"></div>
+
+      <div class="section-title"><i class="fas fa-list"></i> Interventi registrati</div>
+      <div id="historyListWrap">
+        <div class="history-empty" id="historyEmpty">Nessun intervento registrato</div>
+        <div class="table-scroll">
+          <table class="history-table" id="historyTable" style="display:none">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Tecnico</th>
+                <th>Tipo intervento</th>
+                <th>Note</th>
+                <th>Allegato</th>
+                <th id="thHistAzioni">Azioni</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="historyAddSection" style="display:none">
+        <div class="section-title"><i class="fas fa-plus-circle"></i> Aggiungi intervento</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Data intervento *</label><input type="date" id="manData"></div>
+          <div class="form-group"><label>Tecnico *</label><input type="text" id="manTecnico" placeholder="Nome e cognome"></div>
+          <div class="form-group">
+            <label>Tipo intervento *</label>
+            <select id="manTipo">
+              <option value="">Seleziona...</option>
+              <option value="Manutenzione ordinaria">Manutenzione ordinaria</option>
+              <option value="Manutenzione straordinaria">Manutenzione straordinaria</option>
+              <option value="Verifica periodica">Verifica periodica</option>
+              <option value="Sostituzione filtri">Sostituzione filtri</option>
+              <option value="Controllo funzionale">Controllo funzionale</option>
+              <option value="Altro">Altro</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Link allegato (PDF/foto)</label><input type="url" id="manAllegato" placeholder="https://drive.google.com/..."></div>
+          <div class="form-group full"><label>Note</label><textarea id="manNote" rows="3" placeholder="Dettagli intervento..."></textarea></div>
+          <div class="form-group full">
+            <label class="checkbox-row">
+              <input type="checkbox" id="manAggiornaUltime" checked>
+              Aggiorna "Ultima manutenzione" del dispositivo con questa data
+            </label>
+            <label class="checkbox-row" style="margin-top:.4rem">
+              <input type="checkbox" id="manImpostaProssima">
+              Imposta anche la prossima manutenzione
+            </label>
+            <div id="manProssimaWrap" style="display:none;margin-top:.6rem;max-width:220px">
+              <label>Prossima manutenzione</label>
+              <input type="date" id="manProssima">
+            </div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-save" onclick="saveManutenzione()"><i class="fas fa-save"></i> Salva intervento</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal utenti -->
+<div id="usersModal" class="modal-overlay">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <h2>Gestione Utenti</h2>
+      <button class="modal-close" onclick="closeUsersModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <button class="btn btn-primary" onclick="openUserForm()" style="margin-bottom:1rem"><i class="fas fa-user-plus"></i> Nuovo utente</button>
+      <table class="users-table">
+        <thead><tr><th>Username</th><th>Nome</th><th>Ruolo</th><th style="text-align:center">Azioni</th></tr></thead>
+        <tbody id="usersTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="userFormModal" class="modal-overlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 id="userFormTitle">Nuovo utente</h2>
+      <button class="modal-close" onclick="closeUserForm()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editUserId">
+      <div class="form-group"><label>Username *</label><input type="text" id="userUsername"></div>
+      <div class="form-group"><label>Nome</label><input type="text" id="userNome"></div>
+      <div class="form-group"><label>Password *</label><input type="password" id="userPassword"></div>
+      <div class="form-group">
+        <label>Ruolo *</label>
+        <select id="userRole">
+          <option value="viewer">Visualizzatore</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-cancel" onclick="closeUserForm()">Annulla</button>
+        <button type="button" class="btn-save" onclick="saveUser()"><i class="fas fa-save"></i> Salva</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"><i class="fas fa-check-circle"></i><span id="toastMsg"></span></div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBh8Bo3qihl1WhxKMuj6lH9NMNPzAwnA_g",
+  authDomain: "gestionale-pisa.firebaseapp.com",
+  projectId: "gestionale-pisa",
+  storageBucket: "gestionale-pisa.firebasestorage.app",
+  messagingSenderId: "534797853850",
+  appId: "1:534797853850:web:a054a8e91fa4646c222b23"
+};
+
+const EMAILJS_PUBLIC_KEY = "XGGJp7eun1r8VUpbn";
+const EMAILJS_SERVICE_ID = "service_4dw9ce7";
+const EMAILJS_TEMPLATE_ID = "template_ei9fawo";
+const SESSION_KEY = "lab_session_fb";
+const LAST_EMAIL_KEY = "lab_last_email_date";
+const DAYS_WARNING = 30;
+
+var db = null;
+var equipment = [];
+var users = [];
+var currentUser = null;
+var unsubEquipment = null;
+var unsubUsers = null;
+var currentHistoryEquipId = null;
+var currentHistoryList = [];
+
+try { if (typeof emailjs !== "undefined") emailjs.init(EMAILJS_PUBLIC_KEY); } catch (e) {}
+
+function showLoadError(msg) {
+  var el = document.getElementById("loadingError");
+  if (el) el.textContent = msg;
+}
+function hideLoading() {
+  document.getElementById("loadingOverlay").classList.add("hidden");
+}
+function showLogin() {
+  document.getElementById("loginScreen").classList.remove("hidden");
+  document.getElementById("app").classList.remove("show");
+}
+
+function ensureAdminExists() {
+  return db.collection("users").limit(1).get().then(function (snap) {
+    if (snap.empty) {
+      return db.collection("users").add({
+        username: "admin",
+        password: "admin123",
+        nome: "Amministratore",
+        role: "admin",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  });
+}
+
+function startRealtimeListeners() {
+  if (unsubEquipment) unsubEquipment();
+  unsubEquipment = db.collection("equipment").onSnapshot(function (snap) {
+    equipment = [];
+    snap.forEach(function (doc) {
+      var d = doc.data();
+      d.id = doc.id;
+      equipment.push(d);
+    });
+    if (currentUser) {
+      renderStats();
+      renderTable();
+      updateExpiryAlert();
+    }
+  }, function (err) {
+    console.error(err);
+    showToast("Errore sincronizzazione dispositivi");
+  });
+
+  if (unsubUsers) unsubUsers();
+  unsubUsers = db.collection("users").onSnapshot(function (snap) {
+    users = [];
+    snap.forEach(function (doc) {
+      var d = doc.data();
+      d.id = doc.id;
+      users.push(d);
+    });
+    if (document.getElementById("usersModal").classList.contains("show")) {
+      renderUsersTable();
+    }
+  });
+}
+
+function getDaysUntil(dateStr) {
+  if (!dateStr) return null;
+  var target = new Date(dateStr);
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+  return Math.ceil((target - today) / 86400000);
+}
+function isOverdue(d) { var x = getDaysUntil(d); return x !== null && x < 0; }
+function isExpiringSoon(d) { var x = getDaysUntil(d); return x !== null && x >= 0 && x <= DAYS_WARNING; }
+function getExpiryStatus(d) {
+  if (!d) return "none";
+  if (isOverdue(d)) return "overdue";
+  if (isExpiringSoon(d)) return "soon";
+  return "ok";
+}
+
+function updateExpiryAlert() {
+  var overdueCount = 0, soonCount = 0;
+  equipment.forEach(function (e) {
+    if (isOverdue(e.prossimaMan)) overdueCount++;
+    else if (isExpiringSoon(e.prossimaMan)) soonCount++;
+  });
+  var box = document.getElementById("expiryAlert");
+  var text = document.getElementById("expiryAlertText");
+  if (overdueCount === 0 && soonCount === 0) {
+    box.classList.remove("show", "danger");
+    return;
+  }
+  var parts = [];
+  if (overdueCount > 0) parts.push("<strong>" + overdueCount + " DPC scaduti</strong>");
+  if (soonCount > 0) parts.push("<strong>" + soonCount + " DPC in scadenza entro " + DAYS_WARNING + " giorni</strong>");
+  text.innerHTML = parts.join(" • ") + ".";
+  box.classList.add("show");
+  if (overdueCount > 0) box.classList.add("danger");
+  else box.classList.remove("danger");
+}
+
+function filterExpiring() {
+  var hasOverdue = equipment.some(function (e) { return isOverdue(e.prossimaMan); });
+  document.getElementById("filterScadenza").value = hasOverdue ? "scaduti" : "in_scadenza";
+  renderTable();
+}
+
+function formatDate(d) {
+  if (!d) return "—";
+  if (String(d).indexOf("/") > -1) return d;
+  var p = String(d).split("-");
+  if (p.length === 3) return p[2] + "/" + p[1] + "/" + p[0];
+  return d;
+}
+
+function normalizeDate(val) {
+  if (!val) return "";
+  if (typeof val === "number") {
+    var date = new Date(Math.round((val - 25569) * 86400 * 1000));
+    return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+  }
+  val = String(val).trim();
+  var m = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m) return m[3] + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+  return "";
+}
+
+function buildExpiryMessage() {
+  var overdueList = [], soonList = [];
+  equipment.forEach(function (e) {
+    if (isOverdue(e.prossimaMan)) {
+      overdueList.push("• " + (e.serialNumber || "—") + " | " + e.tipo + " | " + (e.ubicazione || "") + " | Scaduto da " + Math.abs(getDaysUntil(e.prossimaMan)) + " giorni");
+    } else if (isExpiringSoon(e.prossimaMan)) {
+      soonList.push("• " + (e.serialNumber || "—") + " | " + e.tipo + " | " + (e.ubicazione || "") + " | Scade il " + formatDate(e.prossimaMan) + " (tra " + getDaysUntil(e.prossimaMan) + " giorni)");
+    }
+  });
+  if (!overdueList.length && !soonList.length) return null;
+  var msg = "Report scadenze DPC\n\nData: " + new Date().toLocaleDateString("it-IT") + "\n\n";
+  if (overdueList.length) msg += "=== SCADUTI (" + overdueList.length + ") ===\n" + overdueList.join("\n") + "\n\n";
+  if (soonList.length) msg += "=== IN SCADENZA 30 GG (" + soonList.length + ") ===\n" + soonList.join("\n") + "\n\n";
+  msg += "Verificare e programmare le manutenzioni.";
+  return msg;
+}
+
+function sendExpiryEmail(manual) {
+  if (typeof emailjs === "undefined") {
+    if (manual) alert("EmailJS non caricato");
+    return;
+  }
+  var message = buildExpiryMessage();
+  if (!message) {
+    if (manual) showToast("Nessuna scadenza da notificare");
+    return;
+  }
+  if (!manual) {
+    var today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(LAST_EMAIL_KEY) === today) return;
+  }
+  var params = {
+    to_name: "Responsabile Laboratorio",
+    from_name: "Sistema Gestione Strumentazione",
+    subject: "Avviso scadenze DPC - " + new Date().toLocaleDateString("it-IT"),
+    message: message
+  };
+  if (manual) showToast("Invio email in corso...");
+  emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params)
+    .then(function () {
+      localStorage.setItem(LAST_EMAIL_KEY, new Date().toISOString().slice(0, 10));
+      showToast(manual ? "Email inviata" : "Email automatica inviata");
+    })
+    .catch(function (err) {
+      console.error(err);
+      if (manual) alert("Errore email: " + (err.text || JSON.stringify(err)));
+    });
+}
+
+function tryAutoSendEmail() {
+  setTimeout(function () { sendExpiryEmail(false); }, 2000);
+}
+
+function doLogin() {
+  var username = document.getElementById("loginUsername").value.trim();
+  var password = document.getElementById("loginPassword").value;
+  var errorBox = document.getElementById("loginError");
+  if (!username || !password) {
+    errorBox.textContent = "Inserisci username e password";
+    errorBox.classList.add("show");
+    return;
+  }
+  db.collection("users").where("username", "==", username).limit(1).get()
+    .then(function (snap) {
+      if (snap.empty) {
+        errorBox.textContent = "Username o password non corretti";
+        errorBox.classList.add("show");
+        return;
+      }
+      var doc = snap.docs[0];
+      var u = doc.data();
+      if (u.password !== password) {
+        errorBox.textContent = "Username o password non corretti";
+        errorBox.classList.add("show");
+        return;
+      }
+      currentUser = {
+        id: doc.id,
+        username: u.username,
+        nome: u.nome || u.username,
+        role: u.role
+      };
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+      errorBox.classList.remove("show");
+      showApp();
+    })
+    .catch(function (err) {
+      console.error(err);
+      errorBox.textContent = "Errore connessione: " + err.message;
+      errorBox.classList.add("show");
+    });
+}
+
+function doLogout() {
+  currentUser = null;
+  sessionStorage.removeItem(SESSION_KEY);
+  if (unsubEquipment) { unsubEquipment(); unsubEquipment = null; }
+  if (unsubUsers) { unsubUsers(); unsubUsers = null; }
+  showLogin();
+  document.getElementById("loginUsername").value = "";
+  document.getElementById("loginPassword").value = "";
+  document.getElementById("loginError").classList.remove("show");
+}
+
+function checkSession() {
+  try {
+    var s = sessionStorage.getItem(SESSION_KEY);
+    if (s) {
+      currentUser = JSON.parse(s);
+      showApp();
+      return;
+    }
+  } catch (e) {}
+  showLogin();
+}
+
+function isAdmin() {
+  return currentUser && currentUser.role === "admin";
+}
+
+function showApp() {
+  document.getElementById("loginScreen").classList.add("hidden");
+  document.getElementById("app").classList.add("show");
+  document.getElementById("currentUserName").textContent = currentUser.nome;
+  document.getElementById("currentUserRole").textContent = currentUser.role === "admin" ? "(Admin)" : "(Visualizzatore)";
+  var adminOnly = isAdmin();
+  document.getElementById("btnNuovo").style.display = adminOnly ? "inline-flex" : "none";
+  document.getElementById("btnUsers").style.display = adminOnly ? "inline-flex" : "none";
+  document.getElementById("btnImport").style.display = adminOnly ? "inline-flex" : "none";
+  document.getElementById("btnImportExcel").style.display = adminOnly ? "inline-flex" : "none";
+  document.getElementById("btnEmptyAdd").style.display = adminOnly ? "inline" : "none";
+  document.getElementById("thAzioni").style.display = adminOnly ? "" : "none";
+  document.getElementById("btnEmail").style.display = adminOnly ? "inline-flex" : "none";
+  startRealtimeListeners();
+  if (adminOnly) tryAutoSendEmail();
+}
+
+function clearFieldErrors() {
+  document.querySelectorAll(".field-error").forEach(function (el) { el.remove(); });
+  document.querySelectorAll("input, select, textarea").forEach(function (el) { el.classList.remove("error"); });
+}
+function showFieldError(fieldId, message) {
+  var field = document.getElementById(fieldId);
+  if (!field) return;
+  field.classList.add("error");
+  var errorEl = field.parentNode.querySelector(".field-error");
+  if (!errorEl) {
+    errorEl = document.createElement("div");
+    errorEl.className = "field-error";
+    field.parentNode.appendChild(errorEl);
+  }
+  errorEl.textContent = message;
+}
+function validateEquipment() {
+  clearFieldErrors();
+  var ok = true;
+  if (!document.getElementById("serialNumber").value.trim()) { showFieldError("serialNumber", "Obbligatorio"); ok = false; }
+  if (!document.getElementById("idDispositivo").value.trim()) { showFieldError("idDispositivo", "Obbligatorio"); ok = false; }
+  if (!document.getElementById("tipo").value) { showFieldError("tipo", "Seleziona tipo"); ok = false; }
+  if (!document.getElementById("ubicazione").value.trim()) { showFieldError("ubicazione", "Obbligatoria"); ok = false; }
+  var haF = document.querySelector('input[name="haSistemaFiltrante"]:checked');
+  if (haF && haF.value === "si") {
+    if (!document.getElementById("tipologiaFiltro").value.trim()) { showFieldError("tipologiaFiltro", "Obbligatorio o N.A."); ok = false; }
+    if (!document.getElementById("misureFiltro").value.trim()) { showFieldError("misureFiltro", "Obbligatorio o N.A."); ok = false; }
+  }
+  var haP = document.querySelector('input[name="haPrefiltro"]:checked');
+  if (haP && haP.value === "si") {
+    if (!document.getElementById("tipologiaPrefiltro").value.trim()) { showFieldError("tipologiaPrefiltro", "Obbligatorio o N.A."); ok = false; }
+    if (!document.getElementById("misurePrefiltro").value.trim()) { showFieldError("misurePrefiltro", "Obbligatorio o N.A."); ok = false; }
+  }
+  var u = document.getElementById("ultimaMan").value;
+  var p = document.getElementById("prossimaMan").value;
+  if (u && p && u > p) { showFieldError("prossimaMan", "Non può essere prima dell'ultima"); ok = false; }
+  return ok;
+}
+
+function showToast(msg) {
+  document.getElementById("toastMsg").textContent = msg;
+  var t = document.getElementById("toast");
+  t.classList.add("show");
+  setTimeout(function () { t.classList.remove("show"); }, 2800);
+}
+function statusBadge(stato) {
+  var map = { "Attivo": "badge-green", "In manutenzione": "badge-amber", "Fuori servizio": "badge-rose" };
+  return '<span class="badge ' + (map[stato] || "") + '">' + stato + "</span>";
+}
+function tipoIcon(tipo) {
+  var icons = {
+    "Cappa chimica": "fa-wind",
+    "Armadietto aspirato": "fa-box-open",
+    "Armadietto non aspirato": "fa-box",
+    "Armadio di sicurezza": "fa-shield-alt",
+    "Cappa a filtrazione": "fa-filter",
+    "HALO": "fa-circle-notch"
+  };
+  return icons[tipo] || "fa-flask";
+}
+function toggleFiltroFields() {
+  var s = document.querySelector('input[name="haSistemaFiltrante"]:checked');
+  var box = document.getElementById("filtroFields");
+  if (s && s.value === "si") box.classList.add("show");
+  else {
+    box.classList.remove("show");
+    document.getElementById("tipologiaFiltro").value = "";
+    document.getElementById("misureFiltro").value = "";
+  }
+}
+function togglePrefiltroFields() {
+  var s = document.querySelector('input[name="haPrefiltro"]:checked');
+  var box = document.getElementById("prefiltroFields");
+  if (s && s.value === "si") box.classList.add("show");
+  else {
+    box.classList.remove("show");
+    document.getElementById("tipologiaPrefiltro").value = "";
+    document.getElementById("misurePrefiltro").value = "";
+  }
+}
+
+function renderStats() {
+  var total = equipment.length, attivo = 0, manut = 0, fuori = 0, scaduti = 0, soon = 0;
+  equipment.forEach(function (e) {
+    if (e.stato === "Attivo") attivo++;
+    else if (e.stato === "In manutenzione") manut++;
+    else if (e.stato === "Fuori servizio") fuori++;
+    if (isOverdue(e.prossimaMan)) scaduti++;
+    else if (isExpiringSoon(e.prossimaMan)) soon++;
+  });
+  document.getElementById("statsContainer").innerHTML =
+    '<div class="stat-card"><div class="stat-value">' + total + '</div><div class="stat-label">Totale</div></div>' +
+    '<div class="stat-card"><div class="stat-value stat-green">' + attivo + '</div><div class="stat-label">Attivi</div></div>' +
+    '<div class="stat-card"><div class="stat-value stat-amber">' + manut + '</div><div class="stat-label">In manutenzione</div></div>' +
+    '<div class="stat-card"><div class="stat-value stat-rose">' + fuori + '</div><div class="stat-label">Fuori servizio</div></div>' +
+    '<div class="stat-card"><div class="stat-value ' + (scaduti > 0 ? "stat-red" : "") + '">' + scaduti + '</div><div class="stat-label">Scaduti</div></div>' +
+    '<div class="stat-card"><div class="stat-value ' + (soon > 0 ? "stat-orange" : "") + '">' + soon + '</div><div class="stat-label">In scadenza</div></div>';
+}
+
+function renderTable() {
+  var search = document.getElementById("searchInput").value.toLowerCase();
+  var tipo = document.getElementById("filterTipo").value;
+  var stato = document.getElementById("filterStato").value;
+  var filtroScadenza = document.getElementById("filterScadenza").value;
+  var filtered = equipment.filter(function (e) {
+    var ms = !search ||
+      (e.serialNumber || "").toLowerCase().indexOf(search) > -1 ||
+      (e.idDispositivo || "").toLowerCase().indexOf(search) > -1 ||
+      (e.marca || "").toLowerCase().indexOf(search) > -1 ||
+      (e.modello || "").toLowerCase().indexOf(search) > -1 ||
+      (e.ubicazione || "").toLowerCase().indexOf(search) > -1 ||
+      (e.responsabile || "").toLowerCase().indexOf(search) > -1;
+    var mt = !tipo || e.tipo === tipo;
+    var mst = !stato || e.stato === stato;
+    var msc = true;
+    if (filtroScadenza === "scaduti") msc = isOverdue(e.prossimaMan);
+    else if (filtroScadenza === "in_scadenza") msc = isExpiringSoon(e.prossimaMan);
+    else if (filtroScadenza === "ok") msc = getExpiryStatus(e.prossimaMan) === "ok" || !e.prossimaMan;
+    return ms && mt && mst && msc;
+  });
+  filtered.sort(function (a, b) {
+    var order = { overdue: 0, soon: 1, ok: 2, none: 3 };
+    var sa = getExpiryStatus(a.prossimaMan), sb = getExpiryStatus(b.prossimaMan);
+    if (order[sa] !== order[sb]) return order[sa] - order[sb];
+    return (a.serialNumber || "").localeCompare(b.serialNumber || "");
+  });
+  var tbody = document.getElementById("tableBody");
+  var empty = document.getElementById("emptyState");
+  var admin = isAdmin();
+  if (!filtered.length) {
+    tbody.innerHTML = "";
+    empty.classList.add("show");
+    return;
+  }
+  empty.classList.remove("show");
+  var html = "";
+  filtered.forEach(function (e) {
+    var status = getExpiryStatus(e.prossimaMan);
+    var rowClass = status === "overdue" ? "row-overdue" : (status === "soon" ? "row-soon" : "");
+    var dateClass = status === "overdue" ? "overdue" : (status === "soon" ? "soon" : "");
+    var daysText = "";
+    if (status === "overdue") daysText = " <small>(scaduto da " + Math.abs(getDaysUntil(e.prossimaMan)) + " gg)</small>";
+    else if (status === "soon") daysText = " <small>(tra " + getDaysUntil(e.prossimaMan) + " gg)</small>";
+    var filtroText = e.haSistemaFiltrante === "si"
+      ? '<span class="badge badge-blue">Sì</span>' + (e.tipologiaFiltro ? ' <small style="color:#475569">' + e.tipologiaFiltro + "</small>" : "")
+      : '<span class="badge badge-gray">No</span>';
+    var prefiltroText = e.haPrefiltro === "si"
+      ? '<span class="badge badge-blue">Sì</span>' + (e.tipologiaPrefiltro ? ' <small style="color:#475569">' + e.tipologiaPrefiltro + "</small>" : "")
+      : '<span class="badge badge-gray">No</span>';
+    var azioni = '<td><div class="actions">' +
+      '<button class="btn-icon history" title="Storico manutenzioni" onclick="openHistoryModal(\'' + e.id + '\')"><i class="fas fa-history"></i></button>';
+    if (admin) {
+      azioni += '<button class="btn-icon edit" onclick="editEquipment(\'' + e.id + '\')"><i class="fas fa-pen"></i></button>' +
+        '<button class="btn-icon delete" onclick="deleteEquipment(\'' + e.id + '\')"><i class="fas fa-trash"></i></button>';
+    }
+    azioni += "</div></td>";
+    html += '<tr class="' + rowClass + '">' +
+      '<td class="code">' + (e.serialNumber || "—") + "</td>" +
+      '<td class="code">' + (e.idDispositivo || "—") + "</td>" +
+      '<td><div class="tipo-cell"><i class="fas ' + tipoIcon(e.tipo) + '"></i><span>' + e.tipo + "</span></div></td>" +
+      "<td>" + ([e.marca, e.modello].filter(Boolean).join(" ") || "—") + "</td>" +
+      '<td class="truncate" title="' + (e.ubicazione || "") + '">' + (e.ubicazione || "—") + "</td>" +
+      "<td>" + filtroText + "</td><td>" + prefiltroText + "</td>" +
+      "<td>" + statusBadge(e.stato) + "</td>" +
+      "<td>" + formatDate(e.ultimaMan) + "</td>" +
+      '<td class="' + dateClass + '">' + formatDate(e.prossimaMan) + daysText + "</td>" +
+      "<td>" + (e.responsabile || "—") + "</td>" + azioni + "</tr>";
+  });
+  tbody.innerHTML = html;
+}
+
+function openModal(id) {
+  if (!isAdmin()) return;
+  clearFieldErrors();
+  document.getElementById("modal").classList.add("show");
+  document.getElementById("editId").value = "";
+  ["serialNumber","idDispositivo","tipo","marca","modello","ubicazione","ultimaMan","prossimaMan","responsabile","tipologiaFiltro","misureFiltro","tipologiaPrefiltro","misurePrefiltro","note"].forEach(function (fid) {
+    document.getElementById(fid).value = "";
+  });
+  document.getElementById("stato").value = "Attivo";
+  document.getElementById("filtroFields").classList.remove("show");
+  document.getElementById("prefiltroFields").classList.remove("show");
+  document.querySelector('input[name="haSistemaFiltrante"][value="no"]').checked = true;
+  document.querySelector('input[name="haPrefiltro"][value="no"]').checked = true;
+  if (id) {
+    var item = null;
+    for (var i = 0; i < equipment.length; i++) if (equipment[i].id === id) { item = equipment[i]; break; }
+    if (!item) return;
+    document.getElementById("modalTitle").textContent = "Modifica strumentazione";
+    document.getElementById("editId").value = item.id;
+    document.getElementById("serialNumber").value = item.serialNumber || "";
+    document.getElementById("idDispositivo").value = item.idDispositivo || "";
+    document.getElementById("tipo").value = item.tipo || "";
+    document.getElementById("marca").value = item.marca || "";
+    document.getElementById("modello").value = item.modello || "";
+    document.getElementById("ubicazione").value = item.ubicazione || "";
+    document.getElementById("stato").value = item.stato || "Attivo";
+    document.getElementById("ultimaMan").value = item.ultimaMan || "";
+    document.getElementById("prossimaMan").value = item.prossimaMan || "";
+    document.getElementById("responsabile").value = item.responsabile || "";
+    document.getElementById("note").value = item.note || "";
+    if (item.haSistemaFiltrante === "si") {
+      document.querySelector('input[name="haSistemaFiltrante"][value="si"]').checked = true;
+      document.getElementById("tipologiaFiltro").value = item.tipologiaFiltro || "";
+      document.getElementById("misureFiltro").value = item.misureFiltro || "";
+      document.getElementById("filtroFields").classList.add("show");
+    }
+    if (item.haPrefiltro === "si") {
+      document.querySelector('input[name="haPrefiltro"][value="si"]').checked = true;
+      document.getElementById("tipologiaPrefiltro").value = item.tipologiaPrefiltro || "";
+      document.getElementById("misurePrefiltro").value = item.misurePrefiltro || "";
+      document.getElementById("prefiltroFields").classList.add("show");
+    }
+  } else {
+    document.getElementById("modalTitle").textContent = "Nuova strumentazione";
+  }
+}
+function closeModal() {
+  document.getElementById("modal").classList.remove("show");
+  clearFieldErrors();
+}
+
+function saveEquipment() {
+  if (!isAdmin()) return;
+  if (!validateEquipment()) {
+    showToast("Correggi gli errori evidenziati");
+    return;
+  }
+  var id = document.getElementById("editId").value;
+  var serialNumber = document.getElementById("serialNumber").value.trim();
+  var idDispositivo = document.getElementById("idDispositivo").value.trim();
+  var haF = document.querySelector('input[name="haSistemaFiltrante"]:checked');
+  var haP = document.querySelector('input[name="haPrefiltro"]:checked');
+  var haSistemaFiltrante = haF ? haF.value : "no";
+  var haPrefiltro = haP ? haP.value : "no";
+  var data = {
+    serialNumber: serialNumber,
+    idDispositivo: idDispositivo,
+    tipo: document.getElementById("tipo").value,
+    marca: document.getElementById("marca").value.trim(),
+    modello: document.getElementById("modello").value.trim(),
+    ubicazione: document.getElementById("ubicazione").value.trim(),
+    stato: document.getElementById("stato").value,
+    ultimaMan: document.getElementById("ultimaMan").value,
+    prossimaMan: document.getElementById("prossimaMan").value,
+    responsabile: document.getElementById("responsabile").value.trim(),
+    haSistemaFiltrante: haSistemaFiltrante,
+    tipologiaFiltro: haSistemaFiltrante === "si" ? document.getElementById("tipologiaFiltro").value.trim() : "",
+    misureFiltro: haSistemaFiltrante === "si" ? document.getElementById("misureFiltro").value.trim() : "",
+    haPrefiltro: haPrefiltro,
+    tipologiaPrefiltro: haPrefiltro === "si" ? document.getElementById("tipologiaPrefiltro").value.trim() : "",
+    misurePrefiltro: haPrefiltro === "si" ? document.getElementById("misurePrefiltro").value.trim() : "",
+    note: document.getElementById("note").value.trim(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  for (var i = 0; i < equipment.length; i++) {
+    if (equipment[i].id !== id) {
+      if ((equipment[i].serialNumber || "").toLowerCase() === serialNumber.toLowerCase()) {
+        showFieldError("serialNumber", "Serial Number già esistente");
+        return;
+      }
+      if ((equipment[i].idDispositivo || "").toLowerCase() === idDispositivo.toLowerCase()) {
+        showFieldError("idDispositivo", "ID Dispositivo già esistente");
+        return;
+      }
+    }
+  }
+  var p = id
+    ? db.collection("equipment").doc(id).set(data, { merge: true })
+    : db.collection("equipment").add(Object.assign({}, data, { createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
+  p.then(function () {
+    showToast(id ? "Aggiornato" : "Aggiunto");
+    closeModal();
+  }).catch(function (err) {
+    alert("Errore salvataggio: " + err.message);
+  });
+}
+function editEquipment(id) { openModal(id); }
+function deleteEquipment(id) {
+  if (!isAdmin()) return;
+  if (!confirm("Eliminare questa strumentazione e tutto il suo storico manutenzioni?")) return;
+  db.collection("equipment").doc(id).collection("manutenzioni").get()
+    .then(function (snap) {
+      var batch = db.batch();
+      snap.forEach(function (doc) { batch.delete(doc.ref); });
+      batch.delete(db.collection("equipment").doc(id));
+      return batch.commit();
+    })
+    .then(function () { showToast("Eliminato"); })
+    .catch(function (err) { alert("Errore: " + err.message); });
+}
+
+/* ========== STORICO MANUTENZIONI ========== */
+function openHistoryModal(equipId) {
+  currentHistoryEquipId = equipId;
+  var item = null;
+  for (var i = 0; i < equipment.length; i++) if (equipment[i].id === equipId) { item = equipment[i]; break; }
+  if (!item) return;
+
+  document.getElementById("historyDeviceInfo").innerHTML =
+    "<strong>" + (item.serialNumber || "—") + "</strong> • " +
+    (item.idDispositivo || "—") + " • " +
+    (item.tipo || "") + " • " +
+    (item.ubicazione || "") +
+    (item.marca || item.modello ? " • " + [item.marca, item.modello].filter(Boolean).join(" ") : "");
+
+  document.getElementById("manData").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("manTecnico").value = currentUser ? (currentUser.nome || "") : "";
+  document.getElementById("manTipo").value = "";
+  document.getElementById("manAllegato").value = "";
+  document.getElementById("manNote").value = "";
+  document.getElementById("manAggiornaUltime").checked = true;
+  document.getElementById("manImpostaProssima").checked = false;
+  document.getElementById("manProssimaWrap").style.display = "none";
+  document.getElementById("manProssima").value = "";
+
+  document.getElementById("historyAddSection").style.display = isAdmin() ? "block" : "none";
+  document.getElementById("thHistAzioni").style.display = isAdmin() ? "" : "none";
+
+  document.getElementById("historyModal").classList.add("show");
+  loadHistory(equipId);
+}
+
+function closeHistoryModal() {
+  document.getElementById("historyModal").classList.remove("show");
+  currentHistoryEquipId = null;
+  currentHistoryList = [];
+}
+
+function loadHistory(equipId) {
+  db.collection("equipment").doc(equipId).collection("manutenzioni")
+    .orderBy("data", "desc")
+    .get()
+    .then(function (snap) {
+      currentHistoryList = [];
+      snap.forEach(function (doc) {
+        var d = doc.data();
+        d.id = doc.id;
+        currentHistoryList.push(d);
+      });
+      renderHistoryTable();
+    })
+    .catch(function (err) {
+      console.error(err);
+      alert("Errore caricamento storico: " + err.message);
+    });
+}
+
+function renderHistoryTable() {
+  var empty = document.getElementById("historyEmpty");
+  var table = document.getElementById("historyTable");
+  var tbody = document.getElementById("historyTableBody");
+  var admin = isAdmin();
+
+  if (!currentHistoryList.length) {
+    empty.style.display = "block";
+    table.style.display = "none";
+    tbody.innerHTML = "";
+    return;
+  }
+  empty.style.display = "none";
+  table.style.display = "table";
+
+  var html = "";
+  currentHistoryList.forEach(function (m) {
+    var allegato = m.allegatoUrl
+      ? '<a href="' + m.allegatoUrl + '" target="_blank" rel="noopener">Apri</a>'
+      : "—";
+    var azioni = admin
+      ? '<button class="btn-icon delete" title="Elimina" onclick="deleteManutenzione(\'' + m.id + '\')"><i class="fas fa-trash"></i></button>'
+      : "";
+    html += "<tr>" +
+      "<td>" + formatDate(m.data) + "</td>" +
+      "<td>" + (m.tecnico || "—") + "</td>" +
+      "<td>" + (m.tipoIntervento || "—") + "</td>" +
+      "<td>" + (m.note || "—") + "</td>" +
+      "<td>" + allegato + "</td>" +
+      (admin ? "<td>" + azioni + "</td>" : "") +
+      "</tr>";
+  });
+  tbody.innerHTML = html;
+}
+
+function saveManutenzione() {
+  if (!isAdmin() || !currentHistoryEquipId) return;
+  var data = document.getElementById("manData").value;
+  var tecnico = document.getElementById("manTecnico").value.trim();
+  var tipo = document.getElementById("manTipo").value;
+  var allegato = document.getElementById("manAllegato").value.trim();
+  var note = document.getElementById("manNote").value.trim();
+
+  if (!data) { alert("Inserisci la data"); return; }
+  if (!tecnico) { alert("Inserisci il tecnico"); return; }
+  if (!tipo) { alert("Seleziona il tipo di intervento"); return; }
+
+  var record = {
+    data: data,
+    tecnico: tecnico,
+    tipoIntervento: tipo,
+    note: note,
+    allegatoUrl: allegato,
+    creatoDa: currentUser ? currentUser.username : "",
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  var updates = {};
+  if (document.getElementById("manAggiornaUltime").checked) {
+    updates.ultimaMan = data;
+  }
+  if (document.getElementById("manImpostaProssima").checked) {
+    var prox = document.getElementById("manProssima").value;
+    if (!prox) { alert("Inserisci la data della prossima manutenzione"); return; }
+    updates.prossimaMan = prox;
+  }
+  if (Object.keys(updates).length) {
+    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+  }
+
+  db.collection("equipment").doc(currentHistoryEquipId).collection("manutenzioni").add(record)
+    .then(function () {
+      if (Object.keys(updates).length) {
+        return db.collection("equipment").doc(currentHistoryEquipId).set(updates, { merge: true });
+      }
+    })
+    .then(function () {
+      showToast("Intervento salvato");
+      document.getElementById("manTipo").value = "";
+      document.getElementById("manAllegato").value = "";
+      document.getElementById("manNote").value = "";
+      document.getElementById("manImpostaProssima").checked = false;
+      document.getElementById("manProssimaWrap").style.display = "none";
+      document.getElementById("manProssima").value = "";
+      loadHistory(currentHistoryEquipId);
+    })
+    .catch(function (err) {
+      alert("Errore salvataggio intervento: " + err.message);
+    });
+}
+
+function deleteManutenzione(manId) {
+  if (!isAdmin() || !currentHistoryEquipId) return;
+  if (!confirm("Eliminare questo intervento dallo storico?")) return;
+  db.collection("equipment").doc(currentHistoryEquipId).collection("manutenzioni").doc(manId).delete()
+    .then(function () {
+      showToast("Intervento eliminato");
+      loadHistory(currentHistoryEquipId);
+    })
+    .catch(function (err) {
+      alert("Errore: " + err.message);
+    });
+}
+
+document.getElementById("manImpostaProssima").addEventListener("change", function () {
+  document.getElementById("manProssimaWrap").style.display = this.checked ? "block" : "none";
+});
+
+/* ========== UTENTI ========== */
+function openUsersModal() {
+  if (!isAdmin()) return;
+  renderUsersTable();
+  document.getElementById("usersModal").classList.add("show");
+}
+function closeUsersModal() { document.getElementById("usersModal").classList.remove("show"); }
+function renderUsersTable() {
+  var html = "";
+  users.forEach(function (u) {
+    var roleBadge = u.role === "admin" ? '<span class="badge badge-purple">Admin</span>' : '<span class="badge badge-gray">Visualizzatore</span>';
+    html += "<tr><td><strong>" + u.username + "</strong></td><td>" + (u.nome || "—") + "</td><td>" + roleBadge + '</td><td style="text-align:center">' +
+      '<button class="btn-icon edit" onclick="editUser(\'' + u.id + '\')"><i class="fas fa-pen"></i></button> ' +
+      (u.username !== "admin" ? '<button class="btn-icon delete" onclick="deleteUser(\'' + u.id + '\')"><i class="fas fa-trash"></i></button>' : "") +
+      "</td></tr>";
+  });
+  document.getElementById("usersTableBody").innerHTML = html;
+}
+function openUserForm() {
+  document.getElementById("editUserId").value = "";
+  document.getElementById("userUsername").value = "";
+  document.getElementById("userNome").value = "";
+  document.getElementById("userPassword").value = "";
+  document.getElementById("userRole").value = "viewer";
+  document.getElementById("userFormTitle").textContent = "Nuovo utente";
+  document.getElementById("userFormModal").classList.add("show");
+}
+function editUser(id) {
+  var u = null;
+  for (var i = 0; i < users.length; i++) if (users[i].id === id) { u = users[i]; break; }
+  if (!u) return;
+  document.getElementById("editUserId").value = u.id;
+  document.getElementById("userUsername").value = u.username;
+  document.getElementById("userNome").value = u.nome || "";
+  document.getElementById("userPassword").value = u.password || "";
+  document.getElementById("userRole").value = u.role;
+  document.getElementById("userFormTitle").textContent = "Modifica utente";
+  document.getElementById("userFormModal").classList.add("show");
+}
+function closeUserForm() { document.getElementById("userFormModal").classList.remove("show"); }
+function saveUser() {
+  var id = document.getElementById("editUserId").value;
+  var username = document.getElementById("userUsername").value.trim();
+  var nome = document.getElementById("userNome").value.trim();
+  var password = document.getElementById("userPassword").value;
+  var role = document.getElementById("userRole").value;
+  if (!username) { alert("Inserisci username"); return; }
+  if (!password || password.length < 4) { alert("Password minimo 4 caratteri"); return; }
+  for (var i = 0; i < users.length; i++) {
+    if (users[i].id !== id && users[i].username.toLowerCase() === username.toLowerCase()) {
+      alert("Username già esistente");
+      return;
+    }
+  }
+  var data = { username: username, nome: nome, password: password, role: role };
+  var p = id
+    ? db.collection("users").doc(id).set(data, { merge: true })
+    : db.collection("users").add(Object.assign({}, data, { createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
+  p.then(function () {
+    showToast(id ? "Utente aggiornato" : "Utente creato");
+    closeUserForm();
+  }).catch(function (err) {
+    alert("Errore: " + err.message);
+  });
+}
+function deleteUser(id) {
+  if (!confirm("Eliminare questo utente?")) return;
+  if (currentUser && currentUser.id === id) { alert("Non puoi eliminare te stesso"); return; }
+  db.collection("users").doc(id).delete()
+    .then(function () { showToast("Utente eliminato"); })
+    .catch(function (err) { alert("Errore: " + err.message); });
+}
+
+/* ========== EXPORT / IMPORT ========== */
+function exportData() {
+  var blob = new Blob([JSON.stringify(equipment, null, 2)], { type: "application/json" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "strumentazione_lab_" + new Date().toISOString().slice(0, 10) + ".json";
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast("JSON esportato");
+}
+function exportExcel() {
+  if (!equipment.length) { alert("Nessun dato"); return; }
+  var rows = [["Serial Number","ID Dispositivo","Tipo","Marca","Modello","Ubicazione","Stato","Ultima man.","Prossima man.","Responsabile","Sistema filtrante","Tipologia filtro","Misure filtro","Prefiltro","Tipologia prefiltro","Misure prefiltro","Note"]];
+  equipment.forEach(function (e) {
+    rows.push([
+      e.serialNumber || "", e.idDispositivo || "", e.tipo || "", e.marca || "", e.modello || "",
+      e.ubicazione || "", e.stato || "", e.ultimaMan || "", e.prossimaMan || "", e.responsabile || "",
+      e.haSistemaFiltrante === "si" ? "Sì" : "No", e.tipologiaFiltro || "", e.misureFiltro || "",
+      e.haPrefiltro === "si" ? "Sì" : "No", e.tipologiaPrefiltro || "", e.misurePrefiltro || "", e.note || ""
+    ]);
+  });
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Strumentazione");
+  XLSX.writeFile(wb, "strumentazione_lab_" + new Date().toISOString().slice(0, 10) + ".xlsx");
+  showToast("Excel esportato");
+}
+function importData(event) {
+  if (!isAdmin()) return;
+  var file = event.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      var data = JSON.parse(e.target.result);
+      if (!Array.isArray(data)) throw new Error("Formato non valido");
+      if (!confirm("Importare " + data.length + " record? I dati attuali verranno sostituiti.")) return;
+      db.collection("equipment").get().then(function (snap) {
+        var batch = db.batch();
+        snap.forEach(function (doc) { batch.delete(doc.ref); });
+        return batch.commit();
+      }).then(function () {
+        var adds = data.map(function (item) {
+          var copy = Object.assign({}, item);
+          delete copy.id;
+          return db.collection("equipment").add(copy);
+        });
+        return Promise.all(adds);
+      }).then(function () {
+        showToast("Import JSON completato");
+      }).catch(function (err) {
+        alert("Errore import: " + err.message);
+      });
+    } catch (err) {
+      alert("Errore: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+function findColumn(headers, names) {
+  for (var i = 0; i < headers.length; i++) {
+    var h = String(headers[i] || "").toLowerCase().trim();
+    for (var j = 0; j < names.length; j++) if (h.indexOf(names[j]) > -1) return i;
+  }
+  return -1;
+}
+function importExcel(event) {
+  if (!isAdmin()) return;
+  var file = event.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      var data = new Uint8Array(e.target.result);
+      var workbook = XLSX.read(data, { type: "array", cellDates: true });
+      var rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
+      if (rows.length < 2) { alert("File senza dati"); return; }
+      var headers = rows[0];
+      var colSerial = findColumn(headers, ["serial number", "matricola", "serial"]);
+      var colId = findColumn(headers, ["id dispositivo", "id", "codice"]);
+      var colTipo = findColumn(headers, ["tipo", "type"]);
+      var colMarca = findColumn(headers, ["marca", "brand"]);
+      var colModello = findColumn(headers, ["modello", "model"]);
+      var colUbic = findColumn(headers, ["ubicazione", "location"]);
+      var colStato = findColumn(headers, ["stato", "status"]);
+      var colUltima = findColumn(headers, ["ultima man", "ultima manutenzione"]);
+      var colProssima = findColumn(headers, ["prossima man", "prossima manutenzione"]);
+      var colResp = findColumn(headers, ["responsabile"]);
+      var colFiltro = findColumn(headers, ["sistema filtrante"]);
+      var colTipoFilt = findColumn(headers, ["tipologia filtro"]);
+      var colMisFilt = findColumn(headers, ["misure filtro"]);
+      var colPre = findColumn(headers, ["prefiltro"]);
+      var colTipoPre = findColumn(headers, ["tipologia prefiltro"]);
+      var colMisPre = findColumn(headers, ["misure prefiltro"]);
+      var colNote = findColumn(headers, ["note"]);
+      if (colSerial === -1 && colId === -1) { alert("Colonne Serial/ID non trovate"); return; }
+      var imported = [];
+      for (var r = 1; r < rows.length; r++) {
+        var row = rows[r];
+        var serial = colSerial > -1 ? String(row[colSerial] || "").trim() : "";
+        var idDisp = colId > -1 ? String(row[colId] || "").trim() : "";
+        if (!serial && !idDisp) continue;
+        if (!serial) serial = "SN-IMP-" + r;
+        if (!idDisp) idDisp = "ID-IMP-" + r;
+        var tipoVal = colTipo > -1 ? String(row[colTipo] || "").trim() : "Cappa chimica";
+        var tl = tipoVal.toLowerCase();
+        if (tl.indexOf("cappa chim") > -1) tipoVal = "Cappa chimica";
+        else if (tl.indexOf("armadietto aspir") > -1) tipoVal = "Armadietto aspirato";
+        else if (tl.indexOf("non aspir") > -1) tipoVal = "Armadietto non aspirato";
+        else if (tl.indexOf("sicurezza") > -1) tipoVal = "Armadio di sicurezza";
+        else if (tl.indexOf("filtrazione") > -1) tipoVal = "Cappa a filtrazione";
+        else if (tl.indexOf("halo") > -1) tipoVal = "HALO";
+        var statoVal = "Attivo";
+        if (colStato > -1) {
+          var sl = String(row[colStato] || "").toLowerCase();
+          if (sl.indexOf("manut") > -1) statoVal = "In manutenzione";
+          else if (sl.indexOf("fuori") > -1) statoVal = "Fuori servizio";
+        }
+        var haF = "no", haP = "no";
+        if (colFiltro > -1) {
+          var fv = String(row[colFiltro] || "").toLowerCase();
+          if (fv === "si" || fv === "sì" || fv === "yes" || fv === "1") haF = "si";
+        }
+        if (colPre > -1) {
+          var pv = String(row[colPre] || "").toLowerCase();
+          if (pv === "si" || pv === "sì" || pv === "yes" || pv === "1") haP = "si";
+        }
+        imported.push({
+          serialNumber: serial,
+          idDispositivo: idDisp,
+          tipo: tipoVal,
+          marca: colMarca > -1 ? String(row[colMarca] || "").trim() : "",
+          modello: colModello > -1 ? String(row[colModello] || "").trim() : "",
+          ubicazione: colUbic > -1 ? String(row[colUbic] || "").trim() : "Non specificata",
+          stato: statoVal,
+          ultimaMan: colUltima > -1 ? normalizeDate(row[colUltima]) : "",
+          prossimaMan: colProssima > -1 ? normalizeDate(row[colProssima]) : "",
+          responsabile: colResp > -1 ? String(row[colResp] || "").trim() : "",
+          haSistemaFiltrante: haF,
+          tipologiaFiltro: colTipoFilt > -1 ? String(row[colTipoFilt] || "").trim() : "",
+          misureFiltro: colMisFilt > -1 ? String(row[colMisFilt] || "").trim() : "",
+          haPrefiltro: haP,
+          tipologiaPrefiltro: colTipoPre > -1 ? String(row[colTipoPre] || "").trim() : "",
+          misurePrefiltro: colMisPre > -1 ? String(row[colMisPre] || "").trim() : "",
+          note: colNote > -1 ? String(row[colNote] || "").trim() : "",
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      if (!imported.length) { alert("Nessun record valido"); return; }
+      var replace = confirm("Trovati " + imported.length + " dispositivi.\n\nOK = Sostituisci tutto\nAnnulla = Aggiungi");
+      var chain = Promise.resolve();
+      if (replace) {
+        chain = db.collection("equipment").get().then(function (snap) {
+          var batch = db.batch();
+          snap.forEach(function (doc) { batch.delete(doc.ref); });
+          return batch.commit();
+        });
+      }
+      chain.then(function () {
+        return Promise.all(imported.map(function (item) { return db.collection("equipment").add(item); }));
+      }).then(function () {
+        showToast("Import Excel completato");
+      }).catch(function (err) {
+        alert("Errore Excel: " + err.message);
+      });
+    } catch (err) {
+      alert("Errore lettura Excel: " + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = "";
+}
+
+/* ===================== AVVIO ===================== */
+(function initApp() {
+  try {
+    if (typeof firebase === "undefined") {
+      showLoadError("SDK Firebase non caricato. Controlla la connessione internet.");
+      return;
+    }
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    db.enablePersistence({ synchronizeTabs: true }).catch(function () {});
+    ensureAdminExists()
+      .then(function () {
+        hideLoading();
+        checkSession();
+      })
+      .catch(function (err) {
+        console.error(err);
+        showLoadError("Errore Firebase: " + (err && err.message ? err.message : String(err)) +
+          " — Verifica regole Firestore (lettura/scrittura aperte in test).");
+      });
+  } catch (err) {
+    console.error(err);
+    showLoadError("Errore inizializzazione: " + (err && err.message ? err.message : String(err)));
+  }
+})();
+
+document.getElementById("loginPassword").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") doLogin();
+});
+document.getElementById("loginUsername").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") document.getElementById("loginPassword").focus();
+});
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") {
+    closeModal();
+    closeUsersModal();
+    closeUserForm();
+    closeHistoryModal();
+  }
+});
+</script>
+</body>
+</html>
