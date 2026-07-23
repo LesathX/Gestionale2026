@@ -238,9 +238,10 @@
         <select id="filterSede" onchange="renderTable()"><option value="">Tutte le sedi</option></select>
         <select id="filterStato" onchange="renderTable()">
           <option value="">Tutti gli stati</option>
-          <option value="IN PRODUZIONE">IN PRODUZIONE</option>
+          <option value="OPERATIVA">OPERATIVA</option>
           <option value="MANUTENZIONE">MANUTENZIONE</option>
           <option value="DA INSTALLARE">DA INSTALLARE</option>
+          <option value="IN PRODUZIONE">IN PRODUZIONE</option>
           <option value="IN DISUSO">IN DISUSO</option>
           <option value="DISMESSA">DISMESSA</option>
           <option value="NON DI COMPETENZA CAMI">NON DI COMPETENZA CAMI</option>
@@ -345,12 +346,13 @@
         <div class="form-group">
           <label>Stato *</label>
           <select id="stato">
-            <option value="IN PRODUZIONE">IN PRODUZIONE</option>
-            <option value="MANUTENZIONE">MANUTENZIONE</option>
-            <option value="DA INSTALLARE">DA INSTALLARE</option>
-            <option value="IN DISUSO">IN DISUSO</option>
-            <option value="DISMESSA">DISMESSA</option>
-            <option value="NON DI COMPETENZA CAMI">NON DI COMPETENZA CAMI</option>
+          <option value="OPERATIVA">OPERATIVA</option>
+          <option value="MANUTENZIONE">MANUTENZIONE</option>
+          <option value="DA INSTALLARE">DA INSTALLARE</option>
+          <option value="IN PRODUZIONE">IN PRODUZIONE</option>
+          <option value="IN DISUSO">IN DISUSO</option>
+          <option value="DISMESSA">DISMESSA</option>
+          <option value="NON DI COMPETENZA CAMI">NON DI COMPETENZA CAMI</option>
           </select>
         </div>
         <div class="form-group"><label>Referente / Responsabile</label><input type="text" id="responsabile"></div>
@@ -716,7 +718,7 @@ function showToast(msg){
 }
 function statusBadge(stato){
   var map={
-    "IN PRODUZIONE":"badge-green","MANUTENZIONE":"badge-amber","DA INSTALLARE":"badge-blue",
+    "OPERATIVA":"badge-tiffany" , "IN PRODUZIONE":"badge-green","MANUTENZIONE":"badge-amber","DA INSTALLARE":"badge-blue",
     "IN DISUSO":"badge-slate","DISMESSA":"badge-rose","NON DI COMPETENZA CAMI":"badge-gray"
   };
   return '<span class="badge '+(map[stato]||"badge-gray")+'">'+(stato||"—")+'</span>';
