@@ -59,15 +59,32 @@
     .stat-card{background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;padding:1rem}
     .stat-value{font-size:1.5rem;font-weight:700}.stat-label{font-size:.75rem;color:#64748b;margin-top:2px}
     .stat-green{color:#059669}.stat-amber{color:#d97706}.stat-rose{color:#e11d48}.stat-orange{color:#ea580c}.stat-red{color:#dc2626}
-    .filters{background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;padding:1rem;margin-bottom:1.5rem}
-    .filters-inner{display:flex;flex-direction:column;gap:.75rem}
-    @media(min-width:900px){.filters-inner{flex-direction:row;flex-wrap:wrap}}
-    .search-wrap{position:relative;flex:1;min-width:200px}
+    .filters{background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;padding:.85rem 1rem;margin-bottom:1.5rem}
+    .filters-inner{
+      display:flex;
+      flex-direction:row;
+      flex-wrap:nowrap;
+      align-items:center;
+      gap:.5rem;
+      overflow-x:auto;
+      -webkit-overflow-scrolling:touch;
+    }
+    .search-wrap{position:relative;flex:1 1 180px;min-width:160px}
     .search-wrap i{position:absolute;left:.75rem;top:50%;transform:translateY(-50%);color:#94a3b8}
-    .search-wrap input{width:100%;padding:.6rem 1rem .6rem 2.4rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:.875rem;outline:none}
+    .search-wrap input{width:100%;padding:.55rem 1rem .55rem 2.3rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:.85rem;outline:none}
     .search-wrap input:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
-    select{padding:.6rem .75rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:.875rem;background:#fff;outline:none;min-width:140px}
-    select:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+    .filters-inner select{
+      flex:0 0 auto;
+      min-width:130px;
+      max-width:165px;
+      padding:.55rem .65rem;
+      border:1px solid #e2e8f0;
+      border-radius:.5rem;
+      font-size:.8rem;
+      background:#fff;
+      outline:none;
+    }
+    .filters-inner select:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
     .table-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;overflow:hidden}
     .table-scroll{overflow-x:auto}
     table{width:100%;border-collapse:collapse;font-size:.8rem}
@@ -107,13 +124,10 @@
     @media(min-width:640px){.form-grid{grid-template-columns:1fr 1fr}}
     @media(min-width:900px){.form-grid{grid-template-columns:1fr 1fr 1fr}}
     .form-group.full{grid-column:1/-1}
-    .form-group.half{grid-column:span 1}
     label{display:block;font-size:.75rem;font-weight:500;color:#475569;margin-bottom:.25rem}
     input[type=text],input[type=password],input[type=date],input[type=url],input[type=month],select,textarea{width:100%;padding:.6rem .75rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:.875rem;outline:none;font-family:inherit}
     input:focus,select:focus,textarea:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
     textarea{resize:vertical;min-height:70px}
-    .field-error{color:#ef4444;font-size:.75rem;margin-top:.3rem}
-    input.error,select.error,textarea.error{border-color:#ef4444!important;box-shadow:0 0 0 3px rgba(239,68,68,.15)!important}
     .check-group{display:flex;flex-wrap:wrap;gap:.75rem 1.25rem;margin-top:.35rem}
     .check-option{display:flex;align-items:center;gap:.35rem;font-size:.85rem;cursor:pointer}
     .check-option input{width:auto;margin:0}
@@ -220,19 +234,14 @@
           <i class="fas fa-search"></i>
           <input type="text" id="searchInput" placeholder="Cerca matricola, ID, modello, sede..." oninput="renderTable()">
         </div>
-        <select id="filterAcronimo" onchange="renderTable()">
-          <option value="">Tutti gli acronimi</option>
-        </select>
-        <select id="filterSede" onchange="renderTable()">
-          <option value="">Tutte le sedi</option>
-        </select>
+        <select id="filterAcronimo" onchange="renderTable()"><option value="">Tutti gli acronimi</option></select>
+        <select id="filterSede" onchange="renderTable()"><option value="">Tutte le sedi</option></select>
         <select id="filterStato" onchange="renderTable()">
           <option value="">Tutti gli stati</option>
-          <option value="OPERATIVA">OPERATIVA</option>
-          <option value="IN DISUSO">IN DISUSO</option>
+          <option value="IN PRODUZIONE">IN PRODUZIONE</option>
           <option value="MANUTENZIONE">MANUTENZIONE</option>
           <option value="DA INSTALLARE">DA INSTALLARE</option>
-          <option value="IN PRODUZIONE">IN PRODUZIONE</option>
+          <option value="IN DISUSO">IN DISUSO</option>
           <option value="DISMESSA">DISMESSA</option>
           <option value="NON DI COMPETENZA CAMI">NON DI COMPETENZA CAMI</option>
         </select>
@@ -255,27 +264,11 @@
         <table>
           <thead>
             <tr>
-              <th>Acronimo</th>
-              <th>Costruttore</th>
-              <th>Modello</th>
-              <th>Matricola</th>
-              <th>ID</th>
-              <th>Ultima man.</th>
-              <th>Prossima man.</th>
-              <th>Sede</th>
-              <th>Edificio</th>
-              <th>Laboratorio</th>
-              <th>Piano</th>
-              <th>Stanza</th>
-              <th>Stato</th>
-              <th>Referente</th>
-              <th>Cadenza</th>
-              <th>Tipo attività</th>
-              <th>Filtro</th>
-              <th>Stadi</th>
-              <th>Accessori</th>
-              <th>Note</th>
-              <th id="thAzioni">Azioni</th>
+              <th>Acronimo</th><th>Costruttore</th><th>Modello</th><th>Matricola</th><th>ID</th>
+              <th>Ultima man.</th><th>Prossima man.</th><th>Sede</th><th>Edificio</th>
+              <th>Laboratorio</th><th>Piano</th><th>Stanza</th><th>Stato</th><th>Referente</th>
+              <th>Cadenza</th><th>Tipo attività</th><th>Filtro</th><th>Stadi</th>
+              <th>Accessori</th><th>Note</th><th id="thAzioni">Azioni</th>
             </tr>
           </thead>
           <tbody id="tableBody"></tbody>
@@ -438,9 +431,7 @@
           <div class="form-group full">
             <label class="checkbox-row"><input type="checkbox" id="manAggiornaUltime" checked> Aggiorna ultima manutenzione</label>
             <label class="checkbox-row"><input type="checkbox" id="manImpostaProssima"> Imposta prossima manutenzione</label>
-            <div id="manProssimaWrap" style="display:none;margin-top:.5rem;max-width:220px">
-              <input type="date" id="manProssima">
-            </div>
+            <div id="manProssimaWrap" style="display:none;margin-top:.5rem;max-width:220px"><input type="date" id="manProssima"></div>
           </div>
         </div>
         <div class="form-actions"><button type="button" class="btn-save" onclick="saveManutenzione()">Salva intervento</button></div>
@@ -948,7 +939,6 @@ function deleteEquipment(id){
   }).then(function(){ showToast("Eliminato"); }).catch(function(err){ alert(err.message); });
 }
 
-/* STORICO */
 function openHistoryModal(equipId){
   currentHistoryEquipId=equipId;
   var item=null;
@@ -1012,7 +1002,6 @@ document.getElementById("manImpostaProssima").addEventListener("change",function
   document.getElementById("manProssimaWrap").style.display=this.checked?"block":"none";
 });
 
-/* REPORT */
 function openReportModal(equipId){
   currentReportEquipId=equipId;
   var item=null;
@@ -1082,7 +1071,6 @@ function deleteReport(id){
     .then(function(){ showToast("Eliminato"); loadReports(currentReportEquipId); });
 }
 
-/* UTENTI */
 function openUsersModal(){ if(!isAdmin()) return; renderUsersTable(); document.getElementById("usersModal").classList.add("show"); }
 function closeUsersModal(){ document.getElementById("usersModal").classList.remove("show"); }
 function renderUsersTable(){
@@ -1129,7 +1117,6 @@ function deleteUser(id){
   db.collection("users").doc(id).delete().then(function(){ showToast("Eliminato"); });
 }
 
-/* EXPORT */
 function exportData(){
   var blob=new Blob([JSON.stringify(equipment,null,2)],{type:"application/json"});
   var a=document.createElement("a"); a.href=URL.createObjectURL(blob);
