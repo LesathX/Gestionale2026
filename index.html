@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestionale DPC — Multi cliente (A)</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Inter,system-ui,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+    .login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#0f172a,#1e293b);display:flex;align-items:center;justify-content:center;z-index:1000}
+    .login-screen.hidden{display:none}
+    .login-box{background:#fff;border-radius:1rem;padding:2.5rem;width:100%;max-width:400px;box-shadow:0 25px 50px rgba(0,0,0,.35)}
+    .login-logo{text-align:center;margin-bottom:1.5rem}
+    .login-logo i{font-size:2.2rem;color:#059669}
+    .login-logo h1{font-size:1.25rem;margin-top:.5rem}
+    .login-logo p{font-size:.8rem;color:#64748b}
+    .login-error{display:none;background:#fef2f2;color:#b91c1c;padding:.7rem;border-radius:.5rem;font-size:.85rem;margin-bottom:1rem}
+    .login-error.show{display:block}
+    .form-group{margin-bottom:1rem}
+    .form-group label{display:block;font-size:.8rem;font-weight:500;color:#475569;margin-bottom:.3rem}
+    .form-group input,.form-group select,textarea{width:100%;padding:.65rem .8rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:.9rem;outline:none;font-family:inherit}
+    .form-group input:focus,.form-group select:focus,textarea:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+    .btn-login{width:100%;padding:.75rem;background:#059669;color:#fff;border:none;border-radius:.5rem;font-weight:600;cursor:pointer}
+    .login-hint{text-align:center;font-size:.75rem;color:#94a3b8;margin-top:1rem}
+    .app{display:none}.app.show{display:block}
+    .header{background:linear-gradient(to right,#1e293b,#0f172a);color:#fff}
+    .header-inner{max-width:1800px;margin:0 auto;padding:1rem 1.25rem;display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;justify-content:space-between}
+    .logo{display:flex;gap:.75rem;align-items:center}
+    .logo-icon{background:rgba(16,185,129,.2);padding:.55rem;border-radius:.65rem}
+    .logo-icon i{color:#34d399}
+    .logo h1{font-size:1.15rem}.logo p{font-size:.75rem;color:#94a3b8}
+    .header-actions{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center}
+    .user-badge{background:rgba(255,255,255,.1);padding:.35rem .7rem;border-radius:.45rem;font-size:.8rem}
+    .btn{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .8rem;border:none;border-radius:.45rem;color:#fff;font-size:.8rem;font-weight:500;cursor:pointer}
+    .btn-secondary{background:#334155}.btn-primary{background:#059669}.btn-danger{background:#dc2626}
+    .btn-excel{background:#15803d}.sync-badge{background:rgba(16,185,129,.2);color:#34d399;padding:.15rem .45rem;border-radius:.35rem;font-size:.7rem;margin-left:.35rem}
+    .main{max-width:1800px;margin:0 auto;padding:1.25rem}
+    .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:.65rem;margin-bottom:1rem}
+    @media(min-width:900px){.stats{grid-template-columns:repeat(5,1fr)}}
+    .stat-card{background:#fff;border:1px solid #e2e8f0;border-radius:.65rem;padding:.85rem}
+    .stat-value{font-size:1.35rem;font-weight:700}.stat-label{font-size:.72rem;color:#64748b}
+    .filters{background:#fff;border:1px solid #e2e8f0;border-radius:.65rem;padding:.75rem;margin-bottom:1rem}
+    .filters-inner{display:flex;flex-wrap:nowrap;gap:.45rem;overflow-x:auto;align-items:center}
+    .search-wrap{position:relative;flex:1 1 160px;min-width:140px}
+    .search-wrap i{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:#94a3b8}
+    .search-wrap input{width:100%;padding:.5rem .7rem .5rem 2rem;border:1px solid #e2e8f0;border-radius:.45rem;font-size:.8rem}
+    .filters-inner select{min-width:120px;padding:.5rem;border:1px solid #e2e8f0;border-radius:.45rem;font-size:.78rem;background:#fff}
+    .table-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:.65rem;overflow:hidden}
+    .table-scroll{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:.78rem}
+    th{text-align:left;padding:.55rem .6rem;background:#f8fafc;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+    td{padding:.5rem .6rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+    tbody tr:hover{background:#f8fafc}
+    .code{font-family:monospace}.truncate{max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .badge{display:inline-block;font-size:.65rem;padding:.12rem .4rem;border-radius:999px;font-weight:500}
+    .badge-green{background:#d1fae5;color:#047857}.badge-amber{background:#fef3c7;color:#b45309}
+    .badge-rose{background:#ffe4e6;color:#be123c}.badge-blue{background:#dbeafe;color:#1d4ed8}
+    .badge-gray{background:#f1f5f9;color:#64748b}.badge-purple{background:#f3e8ff;color:#7e22ce}
+    .actions{display:flex;gap:.15rem;justify-content:center}
+    .btn-icon{border:none;background:transparent;color:#94a3b8;cursor:pointer;padding:.3rem;border-radius:.3rem}
+    .btn-icon.edit:hover{color:#059669;background:#ecfdf5}
+    .btn-icon.delete:hover{color:#e11d48;background:#fff1f2}
+    .btn-icon.history:hover{color:#7c3aed;background:#f5f3ff}
+    .btn-icon.report:hover{color:#0369a1;background:#e0f2fe}
+    .empty{display:none;padding:3rem;text-align:center;color:#94a3b8}.empty.show{display:block}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:1rem}
+    .modal-overlay.show{display:flex}
+    .modal{background:#fff;border-radius:1rem;width:100%;max-width:52rem;max-height:92vh;overflow-y:auto}
+    .modal-lg{max-width:56rem}.modal-sm{max-width:420px}
+    .modal-header{position:sticky;top:0;background:#fff;border-bottom:1px solid #f1f5f9;padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;z-index:2}
+    .modal-close{border:none;background:none;font-size:1.2rem;color:#94a3b8;cursor:pointer}
+    .modal-body{padding:1.25rem}
+    .form-grid{display:grid;grid-template-columns:1fr;gap:.85rem}
+    @media(min-width:700px){.form-grid{grid-template-columns:1fr 1fr 1fr}}
+    .form-group.full{grid-column:1/-1}
+    .form-actions{display:flex;justify-content:flex-end;gap:.6rem;margin-top:1.1rem}
+    .btn-cancel{padding:.55rem 1rem;border:1px solid #e2e8f0;background:#fff;border-radius:.45rem;cursor:pointer}
+    .btn-save{padding:.55rem 1rem;border:none;background:#059669;color:#fff;border-radius:.45rem;cursor:pointer}
+    .btn-save:disabled{opacity:.6}
+    .toast{position:fixed;bottom:1.2rem;right:1.2rem;background:#1e293b;color:#fff;padding:.7rem 1rem;border-radius:.65rem;display:none;z-index:60;font-size:.85rem}
+    .toast.show{display:block}
+    .loading-overlay{position:fixed;inset:0;background:rgba(15,23,42,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:2000;gap:.6rem;text-align:center;padding:1rem}
+    .loading-overlay.hidden{display:none}
+    .loading-overlay .err{color:#fca5a5;font-size:.9rem}
+    .reminder-box{background:#fffbeb;border:1px solid #fde68a;border-radius:.5rem;padding:.7rem .85rem;margin-bottom:1rem;font-size:.85rem;color:#92400e}
+    .device-info{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.5rem;padding:.75rem;margin-bottom:1rem;font-size:.85rem}
+    .section-title{font-weight:600;margin:1rem 0 .6rem}
+    .history-table{width:100%;border-collapse:collapse;font-size:.82rem}
+    .history-table th,.history-table td{padding:.45rem .5rem;border-bottom:1px solid #f1f5f9;text-align:left}
+    .history-table th{background:#f8fafc;font-size:.72rem}
+    .history-empty{text-align:center;color:#94a3b8;padding:1.2rem}
+    .check-group{display:flex;flex-wrap:wrap;gap:.6rem 1rem}
+    .check-option{display:flex;align-items:center;gap:.3rem;font-size:.82rem}
+    .check-option input{width:auto}
+    .checkbox-row{display:flex;align-items:center;gap:.4rem;font-size:.85rem;margin-top:.4rem}
+    .checkbox-row input{width:auto}
+    .hint{font-size:.72rem;color:#64748b;margin-top:.2rem}
+    .upload-progress{display:none;margin-top:.4rem;font-size:.78rem;color:#0369a1}
+    .upload-progress.show{display:block}
+    .upload-bar{height:5px;background:#e2e8f0;border-radius:3px;margin-top:.25rem;overflow:hidden}
+    .upload-bar-fill{height:100%;width:0;background:#0284c7}
+    .users-table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.75rem}
+    .users-table th,.users-table td{padding:.5rem;border-bottom:1px solid #f1f5f9;text-align:left}
+    .users-table th{background:#f8fafc}
+    .footer-note{text-align:center;font-size:.72rem;color:#94a3b8;margin-top:.85rem}
+    .mode-tag{background:#dbeafe;color:#1d4ed8;font-size:.65rem;padding:.1rem .4rem;border-radius:.3rem}
+  </style>
+</head>
+<body>
+<div id="loadingOverlay" class="loading-overlay">
+  <div><i class="fas fa-spinner fa-spin"></i> Connessione Supabase…</div>
+  <div id="loadingError" class="err"></div>
+</div>
+
+<div id="loginScreen" class="login-screen hidden">
+  <div class="login-box">
+    <div class="login-logo">
+      <i class="fas fa-flask"></i>
+      <h1>Gestionale DPC</h1>
+      <p>Versione A — multi-cliente (tutti vedono tutto)</p>
+    </div>
+    <div id="loginError" class="login-error"></div>
+    <div class="form-group"><label>Username</label><input id="loginUsername" type="text"></div>
+    <div class="form-group"><label>Password</label><input id="loginPassword" type="password"></div>
+    <button class="btn-login" onclick="doLogin()">Accedi</button>
+    <p class="login-hint">admin / admin123</p>
+  </div>
+</div>
+
+<div id="app" class="app">
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon"><i class="fas fa-flask"></i></div>
+        <div>
+          <h1>Gestionale DPC <span class="sync-badge">A</span></h1>
+          <p>Multi-cliente · filtro per cliente · <span class="mode-tag">tutti vedono tutto</span></p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="user-badge"><span id="currentUserName">—</span> <span id="currentUserRole"></span></div>
+        <button class="btn btn-secondary" id="btnClienti" onclick="openClientiModal()" style="display:none"><i class="fas fa-building"></i> Clienti</button>
+        <button class="btn btn-secondary" id="btnUsers" onclick="openUsersModal()" style="display:none"><i class="fas fa-users"></i> Utenti</button>
+        <button class="btn btn-excel" onclick="exportExcel()"><i class="fas fa-file-excel"></i> Excel</button>
+        <button class="btn btn-primary" id="btnNuovo" onclick="openModal()" style="display:none"><i class="fas fa-plus"></i> Nuovo</button>
+        <button class="btn btn-danger" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Esci</button>
+      </div>
+    </div>
+  </header>
+  <main class="main">
+    <div class="stats" id="statsContainer"></div>
+    <div class="filters">
+      <div class="filters-inner">
+        <div class="search-wrap"><i class="fas fa-search"></i><input id="searchInput" placeholder="Cerca..." oninput="renderTable()"></div>
+        <select id="filterCliente" onchange="renderTable()"><option value="">Tutti i clienti</option></select>
+        <select id="filterAcronimo" onchange="renderTable()"><option value="">Acronimi</option></select>
+        <select id="filterSede" onchange="renderTable()"><option value="">Sedi</option></select>
+        <select id="filterStato" onchange="renderTable()">
+          <option value="">Stati</option>
+          <option>IN PRODUZIONE</option><option>MANUTENZIONE</option><option>DA INSTALLARE</option>
+          <option>IN DISUSO</option><option>DISMESSA</option><option>NON DI COMPETENZA CAMI</option>
+        </select>
+        <select id="filterFiltro" onchange="renderTable()"><option value="">Filtro</option><option value="si">Sì</option><option value="no">No</option></select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Cliente</th><th>Acronimo</th><th>Costruttore</th><th>Modello</th><th>Matricola</th><th>ID</th>
+              <th>Ultima</th><th>Prossima</th><th>Sede</th><th>Stato</th><th>Referente</th><th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty"><p>Nessun DPC</p></div>
+    </div>
+    <p class="footer-note">Versione A: ogni utente autenticato vede tutti i clienti (con filtro)</p>
+  </main>
+</div>
+
+<!-- Modal DPC -->
+<div id="modal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modalTitle">Nuovo DPC</h2><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="reminder-box">Se manca un dato usa <strong>N.A.</strong></div>
+      <input type="hidden" id="editId">
+      <div class="form-grid">
+        <div class="form-group"><label>Cliente *</label><select id="clienteId"></select></div>
+        <div class="form-group">
+          <label>Acronimo *</label>
+          <select id="acronimo">
+            <option value="">Seleziona...</option>
+            <option>AAS</option><option>ANA</option><option>AFM</option><option>BA</option><option>CC</option>
+            <option>CFM</option><option>CB</option><option>CBC</option><option>CP</option><option>CPE</option>
+            <option>DAA</option><option>GB</option><option>ISO</option><option>PAL</option><option>PALC</option>
+            <option>PS</option><option>LA</option><option>UE</option><option>CT</option><option>OLAF</option>
+            <option>VLAF</option><option>INF</option><option>AB</option><option>F</option><option>P</option>
+            <option>G</option><option>COM</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Costruttore</label><input id="costruttore"></div>
+        <div class="form-group"><label>Modello</label><input id="modello"></div>
+        <div class="form-group"><label>Matricola *</label><input id="matricola"></div>
+        <div class="form-group"><label>ID *</label><input id="idDispositivo"></div>
+        <div class="form-group"><label>Ultima man.</label><input type="date" id="ultimaMan"></div>
+        <div class="form-group"><label>Prossima man.</label><input type="date" id="prossimaMan"></div>
+        <div class="form-group"><label>Sede *</label><input id="sede"></div>
+        <div class="form-group"><label>Edificio</label><input id="edificio"></div>
+        <div class="form-group"><label>Laboratorio</label><input id="laboratorio"></div>
+        <div class="form-group"><label>Piano</label><input id="piano"></div>
+        <div class="form-group"><label>Stanza</label><input id="stanza"></div>
+        <div class="form-group">
+          <label>Stato</label>
+          <select id="stato">
+            <option>IN PRODUZIONE</option><option>MANUTENZIONE</option><option>DA INSTALLARE</option>
+            <option>IN DISUSO</option><option>DISMESSA</option><option>NON DI COMPETENZA CAMI</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Referente</label><input id="responsabile"></div>
+        <div class="form-group"><label>Cadenza</label><input id="cadenzaMan"></div>
+        <div class="form-group full">
+          <label>Tipo attività</label>
+          <div class="check-group">
+            <label class="check-option"><input type="checkbox" name="tipoAtt" value="MA"> MA</label>
+            <label class="check-option"><input type="checkbox" name="tipoAtt" value="CS"> CS</label>
+            <label class="check-option"><input type="checkbox" name="tipoAtt" value="CF"> CF</label>
+            <label class="check-option"><input type="checkbox" name="tipoAtt" value="FF"> FF</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Sistema filtrante</label>
+          <select id="haSistemaFiltrante"><option value="no">No</option><option value="si">Sì</option></select>
+        </div>
+        <div class="form-group">
+          <label>Stadi</label>
+          <select id="stadiFiltranti"><option value="">—</option><option>1 Stadio</option><option>2 Stadio</option><option>3 Stadio</option><option>4 Stadio</option></select>
+        </div>
+        <div class="form-group"><label>Accessori</label><input id="accessori"></div>
+        <div class="form-group full"><label>Note</label><textarea id="note" rows="2"></textarea></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-cancel" onclick="closeModal()">Annulla</button>
+        <button class="btn-save" onclick="saveEquipment()">Salva</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Clienti -->
+<div id="clientiModal" class="modal-overlay">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header"><h2>Clienti</h2><button class="modal-close" onclick="closeClientiModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-grid" style="margin-bottom:1rem">
+        <div class="form-group"><label>Nome *</label><input id="cliNome"></div>
+        <div class="form-group"><label>Codice</label><input id="cliCodice" placeholder="es. PISA"></div>
+        <div class="form-group"><label>Città</label><input id="cliCitta"></div>
+        <div class="form-group full"><label>Note</label><input id="cliNote"></div>
+      </div>
+      <button class="btn btn-primary" onclick="saveCliente()"><i class="fas fa-plus"></i> Aggiungi cliente</button>
+      <table class="users-table"><thead><tr><th>Nome</th><th>Codice</th><th>Città</th><th></th></tr></thead><tbody id="clientiTableBody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- Storico / Report / Utenti (compatti) -->
+<div id="historyModal" class="modal-overlay">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2>Storico manutenzioni</h2><button class="modal-close" onclick="closeHistoryModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="device-info" id="historyDeviceInfo"></div>
+      <div id="historyEmpty" class="history-empty">Nessun intervento</div>
+      <div class="table-scroll"><table class="history-table" id="historyTable" style="display:none"><thead><tr><th>Data</th><th>Tecnico</th><th>Tipo</th><th>Note</th><th>File</th><th></th></tr></thead><tbody id="historyTableBody"></tbody></table></div>
+      <div id="historyAddSection" style="display:none">
+        <div class="section-title">Nuovo intervento</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Data *</label><input type="date" id="manData"></div>
+          <div class="form-group"><label>Tecnico *</label><input id="manTecnico"></div>
+          <div class="form-group"><label>Tipo *</label><select id="manTipo"><option value="">—</option><option>Manutenzione ordinaria</option><option>Manutenzione straordinaria</option><option>Verifica periodica</option><option>Sostituzione filtri</option><option>Altro</option></select></div>
+          <div class="form-group full"><label>Allegato</label><input type="file" id="manFile" accept=".pdf,image/*"><div class="hint">oppure link</div><input type="url" id="manAllegato" placeholder="https://..."></div>
+          <div class="form-group full"><label>Note</label><textarea id="manNote" rows="2"></textarea></div>
+        </div>
+        <div class="form-actions"><button class="btn-save" id="btnSaveMan" onclick="saveManutenzione()">Salva</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="reportModal" class="modal-overlay">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2>Report verifica</h2><button class="modal-close" onclick="closeReportModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="device-info" id="reportDeviceInfo"></div>
+      <div id="reportEmpty" class="history-empty">Nessun report</div>
+      <div class="table-scroll"><table class="history-table" id="reportTable" style="display:none"><thead><tr><th>N°</th><th>Data</th><th>Esito</th><th>Ente</th><th>PDF</th><th></th></tr></thead><tbody id="reportTableBody"></tbody></table></div>
+      <div id="reportAddSection" style="display:none">
+        <div class="section-title">Nuovo report</div>
+        <div class="form-grid">
+          <div class="form-group"><label>N° *</label><input id="repNumero"></div>
+          <div class="form-group"><label>Data *</label><input type="date" id="repData"></div>
+          <div class="form-group"><label>Esito *</label><select id="repEsito"><option value="">—</option><option>Conforme</option><option>Non conforme</option><option>Parziale</option><option>N.A.</option></select></div>
+          <div class="form-group"><label>Ente *</label><input id="repEnte" value="CAMI"></div>
+          <div class="form-group full"><label>PDF</label><input type="file" id="repFile" accept=".pdf"><div class="hint">oppure link</div><input type="url" id="repLink"></div>
+          <div class="form-group full"><label>Note</label><textarea id="repNote" rows="2"></textarea></div>
+        </div>
+        <div class="form-actions"><button class="btn-save" id="btnSaveRep" onclick="saveReport()">Salva</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="usersModal" class="modal-overlay">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header"><h2>Utenti</h2><button class="modal-close" onclick="closeUsersModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group"><label>Username *</label><input id="userUsername"></div>
+        <div class="form-group"><label>Nome</label><input id="userNome"></div>
+        <div class="form-group"><label>Password *</label><input type="password" id="userPassword"></div>
+        <div class="form-group"><label>Ruolo</label><select id="userRole"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="superadmin">Superadmin</option></select></div>
+      </div>
+      <button class="btn btn-primary" style="margin:0.75rem 0" onclick="saveUser()">Salva utente</button>
+      <table class="users-table"><thead><tr><th>User</th><th>Nome</th><th>Ruolo</th><th></th></tr></thead><tbody id="usersTableBody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const SUPABASE_URL = "https://josevxlanibnlumpbxjl.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_XyAfO9cKakVWTjbLHrA3Fw_mZGGG0rI";
+const SESSION_KEY = "lab_session_a_v1";
+
+var sb, equipment=[], clienti=[], users=[], currentUser=null;
+var currentHistoryEquipId=null, currentReportEquipId=null;
+
+function toast(m){ var t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); setTimeout(function(){t.classList.remove("show");},2500); }
+function isAdmin(){ return currentUser && (currentUser.role==="admin"||currentUser.role==="superadmin"); }
+function clienteName(id){ var c=clienti.find(function(x){return x.id===id;}); return c?c.nome:"—"; }
+function mapEquip(r){
+  return {id:r.id,clienteId:r.cliente_id,acronimo:r.acronimo||"",costruttore:r.costruttore||"",modello:r.modello||"",
+    matricola:r.matricola||"",idDispositivo:r.id_dispositivo||"",ultimaMan:r.ultima_man||"",prossimaMan:r.prossima_man||"",
+    sede:r.sede||"",edificio:r.edificio||"",laboratorio:r.laboratorio||"",piano:r.piano||"",stanza:r.stanza||"",
+    stato:r.stato||"",responsabile:r.responsabile||"",cadenzaMan:r.cadenza_man||"",tipoAttivita:r.tipo_attivita||[],
+    haSistemaFiltrante:r.ha_sistema_filtrante||"no",stadiFiltranti:r.stadi_filtranti||"",accessori:r.accessori||"",note:r.note||""};
+}
+function fmt(d){ if(!d) return "—"; var p=String(d).split("-"); return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:d; }
+function statusBadge(s){
+  var m={"IN PRODUZIONE":"badge-green","MANUTENZIONE":"badge-amber","DA INSTALLARE":"badge-blue","DISMESSA":"badge-rose"};
+  return '<span class="badge '+(m[s]||"badge-gray")+'">'+(s||"—")+'</span>';
+}
+function getTipo(){ var a=[]; document.querySelectorAll('input[name="tipoAtt"]:checked').forEach(function(c){a.push(c.value);}); return a; }
+function setTipo(arr){ document.querySelectorAll('input[name="tipoAtt"]').forEach(function(c){c.checked=arr&&arr.indexOf(c.value)>-1;}); }
+function safeName(n){ return String(n||"file").replace(/[^a-zA-Z0-9._-]/g,"_"); }
+
+async function loadAll(){
+  var c=await sb.from("clienti").select("*").order("nome");
+  if(c.error) throw c.error; clienti=c.data||[];
+  var e=await sb.from("equipment").select("*").order("matricola");
+  if(e.error) throw e.error; equipment=(e.data||[]).map(mapEquip);
+  var u=await sb.from("users").select("*").order("username");
+  if(u.error) throw u.error; users=u.data||[];
+  fillFilters(); renderStats(); renderTable();
+}
+
+function fillFilters(){
+  var fc=document.getElementById("filterCliente"), cur=fc.value;
+  fc.innerHTML='<option value="">Tutti i clienti</option>';
+  clienti.forEach(function(c){ fc.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>'; });
+  fc.value=cur;
+  var ac={}, se={};
+  equipment.forEach(function(e){ if(e.acronimo) ac[e.acronimo]=1; if(e.sede) se[e.sede]=1; });
+  var fa=document.getElementById("filterAcronimo"), ca=fa.value;
+  fa.innerHTML='<option value="">Acronimi</option>'; Object.keys(ac).sort().forEach(function(a){fa.innerHTML+='<option>'+a+'</option>';}); fa.value=ca;
+  var fs=document.getElementById("filterSede"), cs=fs.value;
+  fs.innerHTML='<option value="">Sedi</option>'; Object.keys(se).sort().forEach(function(s){fs.innerHTML+='<option>'+s+'</option>';}); fs.value=cs;
+  var sel=document.getElementById("clienteId");
+  if(sel){ var v=sel.value; sel.innerHTML='<option value="">Seleziona...</option>'; clienti.forEach(function(c){ sel.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>'; }); sel.value=v; }
+}
+
+function renderStats(){
+  document.getElementById("statsContainer").innerHTML=
+    '<div class="stat-card"><div class="stat-value">'+equipment.length+'</div><div class="stat-label">DPC</div></div>'+
+    '<div class="stat-card"><div class="stat-value">'+clienti.length+'</div><div class="stat-label">Clienti</div></div>'+
+    '<div class="stat-card"><div class="stat-value">'+equipment.filter(function(e){return e.stato==="IN PRODUZIONE";}).length+'</div><div class="stat-label">In produzione</div></div>'+
+    '<div class="stat-card"><div class="stat-value">'+users.length+'</div><div class="stat-label">Utenti</div></div>'+
+    '<div class="stat-card"><div class="stat-value">'+equipment.filter(function(e){return e.haSistemaFiltrante==="si";}).length+'</div><div class="stat-label">Con filtro</div></div>';
+}
+
+function renderTable(){
+  var q=document.getElementById("searchInput").value.toLowerCase();
+  var fcl=document.getElementById("filterCliente").value;
+  var fac=document.getElementById("filterAcronimo").value;
+  var fse=document.getElementById("filterSede").value;
+  var fst=document.getElementById("filterStato").value;
+  var ffi=document.getElementById("filterFiltro").value;
+  var list=equipment.filter(function(e){
+    var ms=!q||[e.matricola,e.idDispositivo,e.modello,e.sede,e.acronimo,clienteName(e.clienteId)].join(" ").toLowerCase().indexOf(q)>-1;
+    return ms&&(!fcl||e.clienteId===fcl)&&(!fac||e.acronimo===fac)&&(!fse||e.sede===fse)&&(!fst||e.stato===fst)&&(!ffi||e.haSistemaFiltrante===ffi);
+  });
+  var tb=document.getElementById("tableBody"), empty=document.getElementById("emptyState");
+  if(!list.length){ tb.innerHTML=""; empty.classList.add("show"); return; }
+  empty.classList.remove("show");
+  var admin=isAdmin(), html="";
+  list.forEach(function(e){
+    var az='<button class="btn-icon history" onclick="openHistory(\''+e.id+'\')"><i class="fas fa-history"></i></button>'+
+           '<button class="btn-icon report" onclick="openReport(\''+e.id+'\')"><i class="fas fa-file-alt"></i></button>';
+    if(admin) az+='<button class="btn-icon edit" onclick="editEquipment(\''+e.id+'\')"><i class="fas fa-pen"></i></button>'+
+                  '<button class="btn-icon delete" onclick="deleteEquipment(\''+e.id+'\')"><i class="fas fa-trash"></i></button>';
+    html+='<tr><td>'+clienteName(e.clienteId)+'</td><td><strong>'+(e.acronimo||"—")+'</strong></td><td class="truncate">'+(e.costruttore||"—")+'</td><td class="truncate">'+(e.modello||"—")+'</td><td class="code">'+(e.matricola||"—")+'</td><td class="code">'+(e.idDispositivo||"—")+'</td><td>'+fmt(e.ultimaMan)+'</td><td>'+fmt(e.prossimaMan)+'</td><td>'+(e.sede||"—")+'</td><td>'+statusBadge(e.stato)+'</td><td class="truncate">'+(e.responsabile||"—")+'</td><td><div class="actions">'+az+'</div></td></tr>';
+  });
+  tb.innerHTML=html;
+}
+
+async function doLogin(){
+  var u=document.getElementById("loginUsername").value.trim();
+  var p=document.getElementById("loginPassword").value;
+  var err=document.getElementById("loginError");
+  if(!u||!p){ err.textContent="Inserisci credenziali"; err.classList.add("show"); return; }
+  var res=await sb.from("users").select("*").eq("username",u).limit(1);
+  if(res.error){ err.textContent=res.error.message; err.classList.add("show"); return; }
+  if(!res.data.length||res.data[0].password!==p){ err.textContent="Credenziali non corrette"; err.classList.add("show"); return; }
+  var row=res.data[0];
+  currentUser={id:row.id,username:row.username,nome:row.nome||row.username,role:row.role};
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+  err.classList.remove("show"); showApp();
+}
+function doLogout(){ currentUser=null; sessionStorage.removeItem(SESSION_KEY); document.getElementById("app").classList.remove("show"); document.getElementById("loginScreen").classList.remove("hidden"); }
+function checkSession(){ try{ var s=sessionStorage.getItem(SESSION_KEY); if(s){ currentUser=JSON.parse(s); showApp(); return; } }catch(e){} document.getElementById("loginScreen").classList.remove("hidden"); }
+async function showApp(){
+  document.getElementById("loginScreen").classList.add("hidden");
+  document.getElementById("app").classList.add("show");
+  document.getElementById("currentUserName").textContent=currentUser.nome;
+  document.getElementById("currentUserRole").textContent="("+currentUser.role+")";
+  var a=isAdmin();
+  document.getElementById("btnNuovo").style.display=a?"inline-flex":"none";
+  document.getElementById("btnUsers").style.display=a?"inline-flex":"none";
+  document.getElementById("btnClienti").style.display=a?"inline-flex":"none";
+  await loadAll();
+}
+
+function openModal(id){
+  if(!isAdmin()) return;
+  fillFilters();
+  document.getElementById("modal").classList.add("show");
+  document.getElementById("editId").value="";
+  ["acronimo","costruttore","modello","matricola","idDispositivo","ultimaMan","prossimaMan","sede","edificio","laboratorio","piano","stanza","responsabile","cadenzaMan","stadiFiltranti","accessori","note"].forEach(function(f){document.getElementById(f).value="";});
+  document.getElementById("clienteId").value=""; document.getElementById("stato").value="IN PRODUZIONE"; document.getElementById("haSistemaFiltrante").value="no"; setTipo([]);
+  if(id){
+    var e=equipment.find(function(x){return x.id===id;}); if(!e) return;
+    document.getElementById("modalTitle").textContent="Modifica DPC";
+    document.getElementById("editId").value=e.id;
+    document.getElementById("clienteId").value=e.clienteId||"";
+    document.getElementById("acronimo").value=e.acronimo; document.getElementById("costruttore").value=e.costruttore;
+    document.getElementById("modello").value=e.modello; document.getElementById("matricola").value=e.matricola;
+    document.getElementById("idDispositivo").value=e.idDispositivo; document.getElementById("ultimaMan").value=e.ultimaMan;
+    document.getElementById("prossimaMan").value=e.prossimaMan; document.getElementById("sede").value=e.sede;
+    document.getElementById("edificio").value=e.edificio; document.getElementById("laboratorio").value=e.laboratorio;
+    document.getElementById("piano").value=e.piano; document.getElementById("stanza").value=e.stanza;
+    document.getElementById("stato").value=e.stato||"IN PRODUZIONE"; document.getElementById("responsabile").value=e.responsabile;
+    document.getElementById("cadenzaMan").value=e.cadenzaMan; document.getElementById("haSistemaFiltrante").value=e.haSistemaFiltrante||"no";
+    document.getElementById("stadiFiltranti").value=e.stadiFiltranti; document.getElementById("accessori").value=e.accessori;
+    document.getElementById("note").value=e.note; setTipo(e.tipoAttivita||[]);
+  } else document.getElementById("modalTitle").textContent="Nuovo DPC";
+}
+function closeModal(){ document.getElementById("modal").classList.remove("show"); }
+function editEquipment(id){ openModal(id); }
+
+async function saveEquipment(){
+  if(!isAdmin()) return;
+  var cliente_id=document.getElementById("clienteId").value;
+  var acronimo=document.getElementById("acronimo").value;
+  var matricola=document.getElementById("matricola").value.trim();
+  var idDispositivo=document.getElementById("idDispositivo").value.trim();
+  var sede=document.getElementById("sede").value.trim();
+  if(!cliente_id||!acronimo||!matricola||!idDispositivo||!sede){ alert("Compila i campi obbligatori (cliente incluso)"); return; }
+  var id=document.getElementById("editId").value;
+  var row={
+    cliente_id:cliente_id, acronimo:acronimo, costruttore:document.getElementById("costruttore").value.trim(),
+    modello:document.getElementById("modello").value.trim(), matricola:matricola, id_dispositivo:idDispositivo,
+    ultima_man:document.getElementById("ultimaMan").value||null, prossima_man:document.getElementById("prossimaMan").value||null,
+    sede:sede, edificio:document.getElementById("edificio").value.trim(), laboratorio:document.getElementById("laboratorio").value.trim(),
+    piano:document.getElementById("piano").value.trim(), stanza:document.getElementById("stanza").value.trim(),
+    stato:document.getElementById("stato").value, responsabile:document.getElementById("responsabile").value.trim(),
+    cadenza_man:document.getElementById("cadenzaMan").value.trim(), tipo_attivita:getTipo(),
+    ha_sistema_filtrante:document.getElementById("haSistemaFiltrante").value,
+    stadi_filtranti:document.getElementById("stadiFiltranti").value,
+    accessori:document.getElementById("accessori").value.trim(), note:document.getElementById("note").value.trim()
+  };
+  var res=id?await sb.from("equipment").update(row).eq("id",id):await sb.from("equipment").insert([row]);
+  if(res.error){ alert(res.error.message); return; }
+  toast("Salvato"); closeModal(); await loadAll();
+}
+async function deleteEquipment(id){
+  if(!isAdmin()||!confirm("Eliminare?")) return;
+  var res=await sb.from("equipment").delete().eq("id",id);
+  if(res.error){ alert(res.error.message); return; }
+  toast("Eliminato"); await loadAll();
+}
+
+function openClientiModal(){ if(!isAdmin()) return; renderClienti(); document.getElementById("clientiModal").classList.add("show"); }
+function closeClientiModal(){ document.getElementById("clientiModal").classList.remove("show"); }
+function renderClienti(){
+  var html="";
+  clienti.forEach(function(c){
+    html+="<tr><td>"+c.nome+"</td><td>"+(c.codice||"—")+"</td><td>"+(c.citta||"—")+"</td><td>"+
+      (isAdmin()?'<button class="btn-icon delete" onclick="deleteCliente(\''+c.id+'\')"><i class="fas fa-trash"></i></button>':'')+"</td></tr>";
+  });
+  document.getElementById("clientiTableBody").innerHTML=html;
+}
+async function saveCliente(){
+  var nome=document.getElementById("cliNome").value.trim();
+  if(!nome){ alert("Nome obbligatorio"); return; }
+  var res=await sb.from("clienti").insert([{
+    nome:nome, codice:document.getElementById("cliCodice").value.trim()||null,
+    citta:document.getElementById("cliCitta").value.trim(), note:document.getElementById("cliNote").value.trim()
+  }]);
+  if(res.error){ alert(res.error.message); return; }
+  document.getElementById("cliNome").value=""; document.getElementById("cliCodice").value=""; document.getElementById("cliCitta").value=""; document.getElementById("cliNote").value="";
+  toast("Cliente creato"); await loadAll(); renderClienti();
+}
+async function deleteCliente(id){
+  if(!confirm("Eliminare cliente? I DPC collegati potrebbero dare errore se restano orfani.")) return;
+  var res=await sb.from("clienti").delete().eq("id",id);
+  if(res.error){ alert(res.error.message); return; }
+  toast("Eliminato"); await loadAll(); renderClienti();
+}
+
+function openUsersModal(){ if(!isAdmin()) return; renderUsers(); document.getElementById("usersModal").classList.add("show"); }
+function closeUsersModal(){ document.getElementById("usersModal").classList.remove("show"); }
+function renderUsers(){
+  var html="";
+  users.forEach(function(u){
+    html+="<tr><td>"+u.username+"</td><td>"+(u.nome||"—")+"</td><td>"+u.role+"</td><td>"+
+      (u.username!=="admin"?'<button class="btn-icon delete" onclick="deleteUser(\''+u.id+'\')"><i class="fas fa-trash"></i></button>':'')+"</td></tr>";
+  });
+  document.getElementById("usersTableBody").innerHTML=html;
+}
+async function saveUser(){
+  var username=document.getElementById("userUsername").value.trim();
+  var password=document.getElementById("userPassword").value;
+  if(!username||!password||password.length<4){ alert("Username e password min 4"); return; }
+  var res=await sb.from("users").insert([{username:username,password:password,nome:document.getElementById("userNome").value.trim(),role:document.getElementById("userRole").value}]);
+  if(res.error){ alert(res.error.message); return; }
+  toast("Utente creato"); document.getElementById("userUsername").value=""; document.getElementById("userPassword").value=""; await loadAll(); renderUsers();
+}
+async function deleteUser(id){
+  if(!confirm("Eliminare?")) return;
+  await sb.from("users").delete().eq("id",id); toast("OK"); await loadAll(); renderUsers();
+}
+
+function openHistory(id){
+  currentHistoryEquipId=id;
+  var e=equipment.find(function(x){return x.id===id;});
+  document.getElementById("historyDeviceInfo").innerHTML=clienteName(e.clienteId)+" · "+(e.acronimo||"")+" · "+(e.matricola||"");
+  document.getElementById("manData").value=new Date().toISOString().slice(0,10);
+  document.getElementById("manTecnico").value=currentUser.nome||"";
+  document.getElementById("manTipo").value=""; document.getElementById("manFile").value=""; document.getElementById("manAllegato").value=""; document.getElementById("manNote").value="";
+  document.getElementById("historyAddSection").style.display=isAdmin()?"block":"none";
+  document.getElementById("historyModal").classList.add("show");
+  loadHistory();
+}
+function closeHistoryModal(){ document.getElementById("historyModal").classList.remove("show"); }
+async function loadHistory(){
+  var res=await sb.from("manutenzioni").select("*").eq("equip_id",currentHistoryEquipId).order("data",{ascending:false});
+  if(res.error){ alert(res.error.message); return; }
+  var list=res.data||[], empty=document.getElementById("historyEmpty"), table=document.getElementById("historyTable"), tb=document.getElementById("historyTableBody");
+  if(!list.length){ empty.style.display="block"; table.style.display="none"; return; }
+  empty.style.display="none"; table.style.display="table";
+  var html="";
+  list.forEach(function(m){
+    var al=m.allegato_url?'<a href="'+m.allegato_url+'" target="_blank">Apri</a>':"—";
+    html+="<tr><td>"+fmt(m.data)+"</td><td>"+(m.tecnico||"—")+"</td><td>"+(m.tipo_intervento||"—")+"</td><td>"+(m.note||"—")+"</td><td>"+al+"</td><td></td></tr>";
+  });
+  tb.innerHTML=html;
+}
+async function saveManutenzione(){
+  if(!isAdmin()) return;
+  var data=document.getElementById("manData").value, tecnico=document.getElementById("manTecnico").value.trim(), tipo=document.getElementById("manTipo").value;
+  if(!data||!tecnico||!tipo){ alert("Compila i campi"); return; }
+  var file=document.getElementById("manFile").files[0], link=document.getElementById("manAllegato").value.trim();
+  var btn=document.getElementById("btnSaveMan"); btn.disabled=true;
+  try{
+    var url=link, path="";
+    if(file){
+      path=currentHistoryEquipId+"/"+Date.now()+"_"+safeName(file.name);
+      var up=await sb.storage.from("manutenzioni").upload(path,file);
+      if(up.error) throw up.error;
+      url=sb.storage.from("manutenzioni").getPublicUrl(path).data.publicUrl;
+    }
+    var res=await sb.from("manutenzioni").insert([{equip_id:currentHistoryEquipId,data:data,tecnico:tecnico,tipo_intervento:tipo,note:document.getElementById("manNote").value.trim(),allegato_url:url||"",storage_path:path,creato_da:currentUser.username}]);
+    if(res.error) throw res.error;
+    await sb.from("equipment").update({ultima_man:data}).eq("id",currentHistoryEquipId);
+    toast("Intervento salvato"); await loadHistory(); await loadAll();
+  }catch(e){ alert(e.message||e); }
+  btn.disabled=false;
+}
+
+function openReport(id){
+  currentReportEquipId=id;
+  var e=equipment.find(function(x){return x.id===id;});
+  document.getElementById("reportDeviceInfo").innerHTML=clienteName(e.clienteId)+" · "+(e.acronimo||"")+" · "+(e.matricola||"");
+  document.getElementById("repNumero").value=""; document.getElementById("repData").value=""; document.getElementById("repEsito").value="";
+  document.getElementById("repEnte").value="CAMI"; document.getElementById("repFile").value=""; document.getElementById("repLink").value=""; document.getElementById("repNote").value="";
+  document.getElementById("reportAddSection").style.display=isAdmin()?"block":"none";
+  document.getElementById("reportModal").classList.add("show");
+  loadReports();
+}
+function closeReportModal(){ document.getElementById("reportModal").classList.remove("show"); }
+async function loadReports(){
+  var res=await sb.from("report").select("*").eq("equip_id",currentReportEquipId).order("data_verifica",{ascending:false});
+  if(res.error){ alert(res.error.message); return; }
+  var list=res.data||[], empty=document.getElementById("reportEmpty"), table=document.getElementById("reportTable"), tb=document.getElementById("reportTableBody");
+  if(!list.length){ empty.style.display="block"; table.style.display="none"; return; }
+  empty.style.display="none"; table.style.display="table";
+  var html="";
+  list.forEach(function(r){
+    var pdf=r.link_pdf?'<a href="'+r.link_pdf+'" target="_blank">PDF</a>':"—";
+    html+="<tr><td>"+(r.numero_report||"—")+"</td><td>"+fmt(r.data_verifica)+"</td><td>"+(r.esito||"—")+"</td><td>"+(r.ente_verificatore||"—")+"</td><td>"+pdf+"</td><td></td></tr>";
+  });
+  tb.innerHTML=html;
+}
+async function saveReport(){
+  if(!isAdmin()) return;
+  var numero=document.getElementById("repNumero").value.trim(), data=document.getElementById("repData").value;
+  var esito=document.getElementById("repEsito").value, ente=document.getElementById("repEnte").value.trim();
+  if(!numero||!data||!esito||!ente){ alert("Compila i campi"); return; }
+  var file=document.getElementById("repFile").files[0], link=document.getElementById("repLink").value.trim();
+  if(!file&&!link){ alert("PDF o link obbligatorio"); return; }
+  var btn=document.getElementById("btnSaveRep"); btn.disabled=true;
+  try{
+    var url=link, path="";
+    if(file){
+      path=currentReportEquipId+"/"+Date.now()+"_"+safeName(file.name);
+      var up=await sb.storage.from("report").upload(path,file);
+      if(up.error) throw up.error;
+      url=sb.storage.from("report").getPublicUrl(path).data.publicUrl;
+    }
+    var res=await sb.from("report").insert([{equip_id:currentReportEquipId,numero_report:numero,data_verifica:data,esito:esito,ente_verificatore:ente,link_pdf:url||"",storage_path:path,note:document.getElementById("repNote").value.trim(),creato_da:currentUser.username}]);
+    if(res.error) throw res.error;
+    await sb.from("equipment").update({ultima_man:data}).eq("id",currentReportEquipId);
+    toast("Report salvato"); await loadReports(); await loadAll();
+  }catch(e){ alert(e.message||e); }
+  btn.disabled=false;
+}
+
+function exportExcel(){
+  var rows=[["Cliente","Acronimo","Costruttore","Modello","Matricola","ID","Sede","Stato","Referente"]];
+  equipment.forEach(function(e){ rows.push([clienteName(e.clienteId),e.acronimo,e.costruttore,e.modello,e.matricola,e.idDispositivo,e.sede,e.stato,e.responsabile]); });
+  var ws=XLSX.utils.aoa_to_sheet(rows), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"DPC"); XLSX.writeFile(wb,"dpc-multi.xlsx");
+}
+
+(async function(){
+  try{
+    sb=window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    var t=await sb.from("users").select("id").limit(1);
+    if(t.error){ document.getElementById("loadingError").textContent=t.error.message; return; }
+    document.getElementById("loadingOverlay").classList.add("hidden");
+    checkSession();
+  }catch(e){ document.getElementById("loadingError").textContent=e.message||e; }
+})();
+document.getElementById("loginPassword").addEventListener("keydown",function(e){ if(e.key==="Enter") doLogin(); });
+</script>
+</body>
+</html>
