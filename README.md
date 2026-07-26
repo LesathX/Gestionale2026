@@ -1,2 +1,3 @@
 Ciao...
 Se leggi questo messaggio significa che ci sto lavorando 
+<img width="269" height="188" alt="manutenzione1" src="https://github.com/user-attachments/assets/c50abc7c-e9c0-4b52-85aa-4df3a5f5a2d6" />
