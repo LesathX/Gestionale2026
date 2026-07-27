@@ -643,7 +643,31 @@ function countDpc(cid){return equipment.filter(function(e){return e.clienteId===
 function renderClienti(){var html="";clienti.forEach(function(c){html+="<tr><td>"+c.nome+"</td><td>"+(c.codice||"—")+"</td><td>"+(c.citta||"—")+"</td><td>"+countDpc(c.id)+"</td><td><button class=\"btn-icon edit\" onclick=\"editCliente('"+c.id+"')\"><i class=\"fas fa-pen\"></i></button> <button class=\"btn-icon delete\" onclick=\"deleteCliente('"+c.id+"')\"><i class=\"fas fa-trash\"></i></button></td></tr>";});document.getElementById("clientiTableBody").innerHTML=html;}
 function editCliente(id){var c=clienti.find(function(x){return x.id===id;});if(!c)return;document.getElementById("editClienteId").value=c.id;document.getElementById("cliNome").value=c.nome||"";document.getElementById("cliCodice").value=c.codice||"";document.getElementById("cliCitta").value=c.citta||"";document.getElementById("cliNote").value=c.note||"";}
 async function saveCliente(){if(!isSuper())return;var nome=reqNA(document.getElementById("cliNome").value),codice=reqNA(document.getElementById("cliCodice").value),citta=reqNA(document.getElementById("cliCitta").value),note=reqNA(document.getElementById("cliNote").value);if(!nome||!codice||!citta||!note){alert("Tutti obbligatori. Usa N.A. se manca un dato.");return;}var id=document.getElementById("editClienteId").value;var row={nome:nome,codice:codice,citta:citta,note:note};var res=id?await sb.from("clienti").update(row).eq("id",id):await sb.from("clienti").insert([row]);if(res.error){alert(res.error.message);return;}toast("Cliente salvato");resetClienteForm();await loadAll();renderClienti();}
-async function deleteCliente(id){if(!isSuper())return;if(countDpc(id)>0){alert("Ci sono DPC collegati");return;}if(!confirm("Eliminare?"))return;var res=await sb.from("clienti").delete().eq("id",id);if(res.error){alert(res.error.message);return;}toast("Eliminato");await loadAll();renderClienti();}
+async function deleteCliente(id){
+  if(!isSuper())return;
+  var c=clienti.find(function(x){return x.id===id;});
+  var n=countDpc(id);
+  var nome=c?c.nome:"questo cliente";
+  var msg;
+  if(n>0){
+    msg="ATTENZIONE\n\nIl cliente \""+nome+"\" ha "+n+" DPC collegati.\nEliminando il cliente verranno eliminati anche tutti i suoi DPC.\n\nVuoi procedere comunque?";
+  }else{
+    msg="Eliminare il cliente \""+nome+"\"?";
+  }
+  if(!confirm(msg))return;
+  if(n>0&&!confirm("Confermi l'eliminazione di "+n+" DPC del cliente \""+nome+"\"?"))return;
+  if(n>0){
+    var delEq=await sb.from("equipment").delete().eq("cliente_id",id);
+    if(delEq.error){alert("Errore eliminazione DPC:\n"+delEq.error.message);return;}
+  }
+  await sb.from("users").update({cliente_id:null}).eq("cliente_id",id);
+  var res=await sb.from("clienti").delete().eq("id",id);
+  if(res.error){alert(res.error.message);return;}
+  try{await logAudit("DELETE",null,"Cliente eliminato: "+nome+(n?" · "+n+" DPC":""));}catch(e){}
+  toast("Cliente eliminato"+(n?" ("+n+" DPC)":""));
+  await loadAll();
+  renderClienti();
+}
 
 function openUsersModal(){if(!isSuper())return;resetUserForm();fillFilters();renderUsers();document.getElementById("usersModal").classList.add("show");}
 function closeUsersModal(){document.getElementById("usersModal").classList.remove("show");}
