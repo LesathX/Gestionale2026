@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Gestionale CAMI</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+.login-screen{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:#5b8fc7;background-image:radial-gradient(circle at 12% 18%,rgba(255,255,255,.18) 0 12%,transparent 13%),linear-gradient(145deg,#6fa0d4 0%,#4f84bc 45%,#5b8fc7 100%);padding:1.5rem}
+.login-screen.hidden{display:none}
+.login-wrap{position:relative;z-index:1;width:100%;max-width:980px;display:grid;grid-template-columns:1.1fr .9fr;gap:2rem;align-items:center}
+@media(max-width:820px){.login-wrap{grid-template-columns:1fr;max-width:420px}.login-hero{text-align:center;order:1}.login-box{order:2}}
+.login-hero h1{font-size:clamp(2rem,4vw,3rem);font-weight:700;color:#fff;margin-bottom:.75rem}
+.login-hero p{font-size:1rem;color:rgba(255,255,255,.92)}
+.login-box{background:rgba(255,255,255,.22);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.45);border-radius:1.1rem;padding:2rem 1.75rem;box-shadow:0 20px 50px rgba(30,64,120,.22);max-width:360px;margin-left:auto}
+@media(max-width:820px){.login-box{margin:0 auto}}
+.login-box-title{text-align:center;font-size:1.35rem;font-weight:700;color:#fff;margin-bottom:.2rem}
+.login-box-sub{text-align:center;font-size:.85rem;color:rgba(255,255,255,.85);margin-bottom:1.25rem}
+.login-box input{width:100%;padding:.75rem .9rem;border:none;border-radius:.55rem;margin-bottom:.9rem;font-size:.95rem}
+.login-error{display:none;background:#fef2f2;color:#b91c1c;padding:.65rem;border-radius:.5rem;font-size:.85rem;margin-bottom:.9rem;text-align:center}
+.login-error.show{display:block}
+.btn-login{width:100%;padding:.8rem;border:none;border-radius:.55rem;background:#dc2626;color:#fff;font-weight:700;cursor:pointer}
+.login-hint{text-align:center;font-size:.75rem;color:rgba(255,255,255,.8);margin-top:1rem}
+.app{display:none}.app.show{display:block}
+.header{background:linear-gradient(to right,#1e3a5f,#1e293b);color:#fff}
+.header-inner{max-width:1900px;margin:0 auto;padding:.9rem 1.1rem;display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;justify-content:space-between}
+.logo{display:flex;gap:.65rem;align-items:center}
+.logo-icon{background:rgba(59,130,246,.25);padding:.5rem;border-radius:.6rem}
+.logo h1{font-size:1.1rem}.logo p{font-size:.72rem;color:#94a3b8}
+.header-actions{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
+.user-badge{background:rgba(255,255,255,.1);padding:.3rem .65rem;border-radius:.4rem;font-size:.78rem}
+.btn{display:inline-flex;align-items:center;gap:.3rem;padding:.4rem .7rem;border:none;border-radius:.4rem;color:#fff;font-size:.78rem;cursor:pointer}
+.btn-secondary{background:#334155}.btn-primary{background:#1d4ed8}.btn-danger{background:#dc2626}
+.btn-excel{background:#15803d}.btn-email{background:#7c3aed}.btn-audit{background:#0f766e}
+.sync-badge{background:rgba(59,130,246,.3);color:#93c5fd;padding:.12rem .35rem;border-radius:.3rem;font-size:.65rem;margin-left:.25rem}
+.expiry-alert{display:none;background:#fff7ed;border-bottom:1px solid #fdba74;color:#9a3412;font-size:.82rem}
+.expiry-alert.show{display:block}.expiry-alert.danger{background:#fef2f2;border-color:#fca5a5;color:#991b1b}
+.expiry-alert-inner{max-width:1900px;margin:0 auto;padding:.55rem 1.1rem;display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+.expiry-alert .btn-sm{background:#dc2626;color:#fff;border:none;padding:.28rem .6rem;border-radius:.3rem;font-size:.72rem;cursor:pointer}
+.main{max-width:1900px;margin:0 auto;padding:1rem}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:.55rem;margin-bottom:.85rem}
+@media(min-width:1000px){.stats{grid-template-columns:repeat(6,1fr)}}
+.stat-card{background:#fff;border:1px solid #e2e8f0;border-radius:.6rem;padding:.7rem}
+.stat-value{font-size:1.25rem;font-weight:700}.stat-label{font-size:.68rem;color:#64748b}
+.stat-red{color:#dc2626}.stat-orange{color:#ea580c}
+.client-stats{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.85rem}
+.client-chip{background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:.2rem .65rem;font-size:.72rem}
+.filters{background:#fff;border:1px solid #e2e8f0;border-radius:.6rem;padding:.65rem;margin-bottom:.85rem}
+.filters-inner{display:flex;flex-wrap:nowrap;gap:.35rem;overflow-x:auto;align-items:center}
+.search-wrap{position:relative;flex:1 1 140px;min-width:120px}
+.search-wrap i{position:absolute;left:.55rem;top:50%;transform:translateY(-50%);color:#94a3b8}
+.search-wrap input{width:100%;padding:.45rem .55rem .45rem 1.8rem;border:1px solid #e2e8f0;border-radius:.4rem;font-size:.76rem}
+.filters-inner select{min-width:105px;padding:.45rem;border:1px solid #e2e8f0;border-radius:.4rem;font-size:.72rem;background:#fff}
+.table-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:.6rem;overflow:hidden}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.74rem}
+th{text-align:left;padding:.45rem .5rem;background:#f8fafc;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+td{padding:.4rem .5rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tbody tr:hover{background:#f8fafc}
+tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
+.code{font-family:monospace}.truncate{max-width:95px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{display:inline-block;font-size:.6rem;padding:.1rem .35rem;border-radius:999px;font-weight:500}
+.badge-green{background:#d1fae5;color:#047857}.badge-amber{background:#fef3c7;color:#b45309}
+.badge-rose{background:#ffe4e6;color:#be123c}.badge-blue{background:#dbeafe;color:#1d4ed8}
+.badge-teal{background:#ccfbf1;color:#0f766e}.badge-gray{background:#f1f5f9;color:#64748b}
+.overdue{color:#dc2626;font-weight:600}.soon{color:#ea580c;font-weight:600}
+.actions{display:flex;gap:.1rem;justify-content:center}
+.btn-icon{border:none;background:transparent;color:#94a3b8;cursor:pointer;padding:.25rem;border-radius:.25rem}
+.btn-icon.edit:hover{color:#1d4ed8;background:#eff6ff}.btn-icon.delete:hover{color:#e11d48;background:#fff1f2}
+.btn-icon.history:hover{color:#7c3aed;background:#f5f3ff}.btn-icon.report:hover{color:#0369a1;background:#e0f2fe}
+.empty{display:none;padding:2.5rem;text-align:center;color:#94a3b8}.empty.show{display:block}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:1rem}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:1rem;width:100%;max-width:54rem;max-height:92vh;overflow-y:auto}
+.modal-lg{max-width:58rem}
+.modal-header{position:sticky;top:0;background:#fff;border-bottom:1px solid #f1f5f9;padding:.9rem 1.1rem;display:flex;justify-content:space-between;align-items:center;z-index:2}
+.modal-close{border:none;background:none;font-size:1.2rem;color:#94a3b8;cursor:pointer}
+.modal-body{padding:1.1rem}
+.form-grid{display:grid;grid-template-columns:1fr;gap:.75rem}
+@media(min-width:700px){.form-grid{grid-template-columns:1fr 1fr 1fr}}
+.form-group label{display:block;font-size:.75rem;font-weight:500;color:#475569;margin-bottom:.25rem}
+.form-group input,.form-group select,textarea{width:100%;padding:.55rem .7rem;border:1px solid #e2e8f0;border-radius:.45rem;font-size:.85rem;outline:none;font-family:inherit}
+.form-group.full{grid-column:1/-1}
+.form-actions{display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem;flex-wrap:wrap}
+.btn-cancel{padding:.48rem .9rem;border:1px solid #e2e8f0;background:#fff;border-radius:.4rem;cursor:pointer}
+.btn-save{padding:.48rem .9rem;border:none;background:#1d4ed8;color:#fff;border-radius:.4rem;cursor:pointer}
+.toast{position:fixed;bottom:1rem;right:1rem;background:#1e293b;color:#fff;padding:.6rem .9rem;border-radius:.55rem;display:none;z-index:60;font-size:.82rem}
+.toast.show{display:block}
+.loading-overlay{position:fixed;inset:0;background:rgba(15,23,42,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:2000;gap:.55rem;text-align:center;padding:1rem}
+.loading-overlay.hidden{display:none}.loading-overlay .err{color:#fca5a5;font-size:.88rem}
+.reminder-box{background:#fffbeb;border:1px solid #fde68a;border-radius:.45rem;padding:.6rem .75rem;margin-bottom:.9rem;font-size:.8rem;color:#92400e}
+.device-info{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.45rem;padding:.65rem;margin-bottom:.9rem;font-size:.82rem}
+.section-title{font-weight:600;margin:.9rem 0 .5rem}
+.history-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.history-table th,.history-table td{padding:.38rem .42rem;border-bottom:1px solid #f1f5f9;text-align:left}
+.history-table th{background:#f8fafc;font-size:.68rem}
+.history-empty{text-align:center;color:#94a3b8;padding:1rem}
+.check-group{display:flex;flex-wrap:wrap;gap:.5rem .9rem}
+.check-option{display:flex;align-items:center;gap:.25rem;font-size:.78rem}.check-option input{width:auto}
+.checkbox-row{display:flex;align-items:center;gap:.3rem;font-size:.8rem}.checkbox-row input{width:auto}
+.hint{font-size:.68rem;color:#64748b;margin-top:.15rem}
+.users-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:.65rem}
+.users-table th,.users-table td{padding:.4rem;border-bottom:1px solid #f1f5f9;text-align:left}
+.users-table th{background:#f8fafc}
+.footer-note{text-align:center;font-size:.68rem;color:#94a3b8;margin-top:.75rem}
+.info-banner{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a5f;padding:.5rem .85rem;border-radius:.45rem;font-size:.8rem;margin-bottom:.85rem}
+.radio-block{display:flex;align-items:center;gap:.4rem;font-size:.85rem;margin-bottom:.5rem;cursor:pointer}
+.radio-block input{width:auto}
+.stadio-card{border:1px solid #e2e8f0;border-radius:.5rem;padding:.65rem;margin-bottom:.5rem;background:#f8fafc}
+.stadio-card h4{font-size:.78rem;margin-bottom:.45rem;color:#1e3a5f}
+.stadio-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.4rem}
+@media(min-width:700px){.stadio-grid{grid-template-columns:repeat(4,1fr)}}
+.stadio-grid label{font-size:.68rem;color:#64748b;display:block;margin-bottom:.1rem}
+.stadio-grid input,.stadio-grid select{width:100%;padding:.35rem .45rem;border:1px solid #e2e8f0;border-radius:.35rem;font-size:.78rem}
+.foto-preview{max-width:160px;max-height:120px;border-radius:.4rem;border:1px solid #e2e8f0;margin-top:.4rem;display:none}
+.foto-preview.show{display:block}
+
+.bell-wrap{position:relative}
+.bell-btn{background:#334155;position:relative}
+.bell-count{position:absolute;top:-4px;right:-4px;background:#dc2626;color:#fff;font-size:.6rem;font-weight:700;min-width:16px;height:16px;border-radius:999px;display:none;align-items:center;justify-content:center;padding:0 4px}
+.bell-count.show{display:flex}
+.bell-panel{display:none;position:absolute;right:0;top:110%;width:320px;max-height:360px;overflow-y:auto;background:#fff;color:#1e293b;border:1px solid #e2e8f0;border-radius:.6rem;box-shadow:0 12px 30px rgba(0,0,0,.15);z-index:80}
+.bell-panel.show{display:block}
+.bell-item{padding:.55rem .7rem;border-bottom:1px solid #f1f5f9;font-size:.78rem;cursor:pointer}
+.bell-item:hover{background:#f8fafc}
+.bell-item.overdue{border-left:3px solid #dc2626}
+.bell-item.soon7{border-left:3px solid #ea580c}
+.bell-item.soon15{border-left:3px solid #d97706}
+.bell-item.soon30{border-left:3px solid #ca8a04}
+.soft-block{background:#fef2f2;border:2px solid #f87171;color:#991b1b;padding:.75rem;border-radius:.5rem;margin-bottom:.85rem;font-size:.85rem;font-weight:600}
+.comment-box{border:1px solid #e2e8f0;border-radius:.45rem;padding:.5rem;margin-bottom:.4rem;background:#f8fafc;font-size:.8rem}
+.comment-meta{font-size:.7rem;color:#64748b;margin-bottom:.2rem}
+.diff-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.45rem;padding:.65rem;font-size:.8rem;max-height:240px;overflow-y:auto;margin-bottom:.75rem}
+.diff-box li{margin-left:1rem;margin-bottom:.2rem}
+
+
+.btn-oggi{background:#b45309}
+.btn-print{background:#0369a1}
+.btn-dup{background:#0f766e}
+.status-badge{display:inline-block;font-size:.6rem;padding:.12rem .4rem;border-radius:999px;font-weight:600}
+.status-ok{background:#d1fae5;color:#047857}
+.status-soon{background:#ffedd5;color:#c2410c}
+.status-scaduto{background:#fee2e2;color:#b91c1c}
+.status-nd{background:#f1f5f9;color:#64748b}
+.oggi-item{border:1px solid #e2e8f0;border-radius:.5rem;padding:.65rem .75rem;margin-bottom:.45rem;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between}
+.oggi-item.overdue{background:#fef2f2;border-color:#fecaca}
+.oggi-item.soon{background:#fff7ed;border-color:#fed7aa}
+.oggi-meta{font-size:.78rem;color:#475569}
+.oggi-tag{font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:.3rem}
+.oggi-tag.man{background:#dbeafe;color:#1d4ed8}
+.oggi-tag.fil{background:#fce7f3;color:#be185d}
+@media print{
+  .header,.filters,.stats,.client-stats,.expiry-alert,.header-actions,.btn,.footer-note,#permBanner,.modal-header .modal-close,.form-actions{display:none!important}
+  .modal-overlay.show{position:static;background:#fff;display:block!important}
+  .modal{box-shadow:none;max-width:100%;max-height:none}
+}
+
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay" class="loading-overlay"><div><i class="fas fa-spinner fa-spin"></i> Connessione...</div><div id="loadingError" class="err"></div></div>
+<div id="loginScreen" class="login-screen hidden">
+  <div class="login-wrap">
+    <div class="login-hero"><h1>Gestionale CAMI</h1><p>Dispositivi di Protezione Collettiva - Multi-cliente</p></div>
+    <div class="login-box">
+      <div class="login-box-title">Gestionale CAMI</div>
+      <div class="login-box-sub">Accesso riservato</div>
+      <div id="loginError" class="login-error"></div>
+      <input type="text" id="loginUsername" placeholder="Username" autocomplete="username">
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+      <button type="button" class="btn-login" onclick="doLogin()">ACCEDI</button>
+      <p class="login-hint">Utenti autorizzati</p>
+    </div>
+  </div>
+</div>
+<div id="app" class="app">
+  <header class="header"><div class="header-inner">
+    <div class="logo"><div class="logo-icon"><i class="fas fa-flask"></i></div><div><h1>Gestionale CAMI <span class="sync-badge">Multi</span></h1><p>DPC - Stadi dinamici</p></div></div>
+    <div class="header-actions">
+      <div class="user-badge"><span id="currentUserName">-</span> <span id="currentUserRole"></span></div>
+      <button class="btn btn-secondary" id="btnClienti" style="display:none" onclick="openClientiModal()"><i class="fas fa-building"></i> Clienti</button>
+      <button class="btn btn-secondary" id="btnUsers" style="display:none" onclick="openUsersModal()"><i class="fas fa-users"></i> Utenti</button>
+      <div class="bell-wrap"><button class="btn bell-btn" id="btnBell" title="Notifiche" onclick="toggleBell()"><i class="fas fa-bell"></i><span class="bell-count" id="bellCount">0</span></button><div class="bell-panel" id="bellPanel"></div></div>
+      <button class="btn btn-oggi" id="btnOggi" style="display:none" onclick="openOggiModal()"><i class="fas fa-tasks"></i> Cosa fare oggi</button>
+<button class="btn btn-excel" id="btnReportMensile" style="display:none" onclick="exportReportMensile()"><i class="fas fa-calendar-alt"></i> Report mese</button>
+      <button class="btn btn-excel" id="btnPacchetto" style="display:none" onclick="openPacchettoModal()"><i class="fas fa-box"></i> Pacchetto cliente</button>
+      <button class="btn btn-email" id="btnEmail" style="display:none" onclick="sendExpiryEmail(true)"><i class="fas fa-envelope"></i> Avviso</button>
+      <button class="btn btn-audit" id="btnAudit" style="display:none" onclick="openAuditModal()"><i class="fas fa-clipboard-list"></i> Modifiche</button>
+      <button class="btn btn-excel" id="btnBackup" style="display:none" onclick="exportExcel(true)"><i class="fas fa-cloud-download-alt"></i> Backup</button>
+      <button class="btn btn-excel" id="btnExportCustom" style="display:none" onclick="openExportModal()"><i class="fas fa-file-export"></i> Export filtrato</button>
+      <button class="btn btn-secondary" onclick="exportData()"><i class="fas fa-download"></i> JSON</button>
+      <button class="btn btn-excel" onclick="exportExcel()"><i class="fas fa-file-excel"></i> Export</button>
+      <label class="btn btn-excel" id="btnImportExcel" style="display:none;cursor:pointer"><i class="fas fa-file-import"></i> Import Excel<input type="file" accept=".xlsx,.xls" hidden onchange="importExcel(event)"></label>
+      <label class="btn btn-secondary" id="btnImport" style="display:none;cursor:pointer"><i class="fas fa-upload"></i> JSON<input type="file" accept=".json" hidden onchange="importData(event)"></label>
+      <button class="btn btn-primary" id="btnNuovo" style="display:none" onclick="openModal()"><i class="fas fa-plus"></i> Nuovo</button>
+      <button class="btn btn-danger" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Esci</button>
+    </div>
+  </div></header>
+  <div id="expiryAlert" class="expiry-alert"><div class="expiry-alert-inner"><i class="fas fa-exclamation-triangle"></i><div id="expiryAlertText"></div><button class="btn-sm" onclick="filterExpiring()">Mostra</button></div></div>
+  <main class="main">
+    <div id="permBanner" class="info-banner"></div>
+    <div class="stats" id="statsContainer"></div>
+    <div class="client-stats" id="clientStats"></div>
+    <div class="filters"><div class="filters-inner">
+      <div class="search-wrap"><i class="fas fa-search"></i><input id="searchInput" placeholder="Cerca..." oninput="renderTable()"></div>
+      <select id="filterCliente" onchange="renderTable()"><option value="">Tutti i clienti</option></select>
+      <select id="filterAcronimo" onchange="renderTable()"><option value="">Acronimi</option></select>
+      <select id="filterSede" onchange="renderTable()"><option value="">Sedi</option></select>
+      <select id="filterStato" onchange="renderTable()"><option value="">Stati</option><option>OPERATIVA</option><option>IN PRODUZIONE</option><option>MANUTENZIONE</option><option>DA INSTALLARE</option><option>IN DISUSO</option><option>DISMESSA</option><option>NON DI COMPETENZA CAMI</option></select>
+      <select id="filterFiltro" onchange="renderTable()"><option value="">Filtro</option><option value="si">Si</option><option value="no">No</option></select>
+      <select id="filterScadenza" onchange="renderTable()"><option value="">Scadenze</option><option value="scaduti">Scaduti</option><option value="d7">Scaduti + entro 7 gg</option><option value="d15">Scaduti + entro 15 gg</option><option value="d30">Scaduti + entro 30 gg</option><option value="in_scadenza">Solo in scadenza (1-30)</option><option value="ok">In regola</option></select>
+    </div></div>
+    <div class="table-wrap"><div class="table-scroll"><table>
+      <thead><tr>
+        <th>Cliente</th><th>Acronimo</th><th>Costruttore</th><th>Modello</th><th>Matricola</th><th>ID</th>
+        <th>Ultima</th><th>Prossima</th><th>Prox filtro</th><th>Status filtro</th><th>Sede</th><th>Edificio</th><th>Lab</th><th>Piano</th><th>Stanza</th>
+        <th>Stato</th><th>Referente</th><th>Cadenza</th><th>Attivita</th><th>Filtro</th><th>Stadi</th><th>Accessori</th><th>Note</th><th>Azioni</th>
+      </tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table></div>
+    <div id="emptyState" class="empty"><p>Nessun DPC</p></div></div>
+    <p class="footer-note">Gestionale CAMI - Stadi filtri dinamici</p>
+  </main>
+</div>
+
+<div id="modal" class="modal-overlay"><div class="modal">
+  <div class="modal-header"><h2 id="modalTitle">Nuovo DPC</h2><button class="modal-close" onclick="closeModal()">&times;</button></div>
+  <div class="modal-body">
+    <div class="reminder-box">Se manca un dato usa <strong>N.A.</strong></div>
+    <div id="softBlockAlert" class="soft-block" style="display:none"></div>
+    <input type="hidden" id="editId">
+    <div class="form-grid">
+      <div class="form-group"><label>Cliente *</label><select id="clienteId"></select></div>
+      <div class="form-group"><label>Acronimo *</label><select id="acronimo"><option value="">-</option><option>AAS</option><option>ANA</option><option>AFM</option><option>BA</option><option>CC</option><option>CFM</option><option>CB</option><option>CBC</option><option>CP</option><option>CPE</option><option>DAA</option><option>GB</option><option>ISO</option><option>PAL</option><option>PALC</option><option>PS</option><option>LA</option><option>UE</option><option>CT</option><option>OLAF</option><option>VLAF</option><option>INF</option><option>AB</option><option>F</option><option>P</option><option>G</option><option>COM</option></select></div>
+      <div class="form-group"><label>Costruttore</label><input id="costruttore"></div>
+      <div class="form-group"><label>Modello</label><input id="modello"></div>
+      <div class="form-group"><label>Matricola *</label><input id="matricola"></div>
+      <div class="form-group"><label>ID *</label><input id="idDispositivo"></div>
+      <div class="form-group"><label>Ultima man.</label><input type="date" id="ultimaMan"></div>
+      <div class="form-group"><label>Prossima man.</label><input type="date" id="prossimaMan"></div>
+      <div class="form-group"><label>Sede *</label><input id="sede"></div>
+      <div class="form-group"><label>Edificio</label><input id="edificio"></div>
+      <div class="form-group"><label>Laboratorio</label><input id="laboratorio"></div>
+      <div class="form-group"><label>Piano</label><input id="piano"></div>
+      <div class="form-group"><label>Stanza</label><input id="stanza"></div>
+      <div class="form-group"><label>Stato</label><select id="stato"><option>OPERATIVA</option><option>IN PRODUZIONE</option><option>MANUTENZIONE</option><option>DA INSTALLARE</option><option>IN DISUSO</option><option>DISMESSA</option><option>NON DI COMPETENZA CAMI</option></select></div>
+      <div class="form-group"><label>Referente</label><input id="responsabile"></div>
+      <div class="form-group"><label>Cadenza</label><input id="cadenzaMan"></div>
+      <div class="form-group full"><label>Tipo attivita</label><div class="check-group">
+        <label class="check-option"><input type="checkbox" name="tipoAtt" value="MA"> MA</label>
+        <label class="check-option"><input type="checkbox" name="tipoAtt" value="CS"> CS</label>
+        <label class="check-option"><input type="checkbox" name="tipoAtt" value="CF"> CF</label>
+        <label class="check-option"><input type="checkbox" name="tipoAtt" value="FF"> FF</label>
+      </div></div>
+      <div class="form-group"><label>Sistema filtrante</label><select id="haSistemaFiltrante"><option value="no">No</option><option value="si">Si</option></select></div>
+      <div class="form-group"><label>N. Stadi</label>
+        <select id="stadiFiltranti" onchange="updateStadiVisibility()">
+          <option value="">-</option>
+          <option value="1">1 Stadio</option>
+          <option value="2">2 Stadio</option>
+          <option value="3">3 Stadio</option>
+          <option value="4">4 Stadio</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Accessori</label><input id="accessori"></div>
+      <div class="form-group full">
+        <label>Dettaglio filtri a stadi</label>
+        <div class="hint" style="margin-bottom:.4rem"><span id="stadiSectionHint">Seleziona prima il N. Stadi per visualizzare i dettagli filtro.</span></div>
+        <div id="stadiBox"></div>
+      </div>
+      <div class="form-group full">
+        <label>Foto DPC</label>
+        <input type="file" id="fotoFile" accept="image/*">
+        <input type="hidden" id="fotoUrl"><input type="hidden" id="fotoPath">
+        <img id="fotoPreview" class="foto-preview" alt="">
+      </div>
+      <div class="form-group full"><label>Note</label><textarea id="note" rows="2"></textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closeModal()">Annulla</button><button class="btn-save" onclick="saveEquipment()">Salva</button></div>
+  </div>
+</div></div>
+
+<div id="importClienteModal" class="modal-overlay"><div class="modal" style="max-width:500px">
+  <div class="modal-header"><h2>Associa file a un cliente</h2><button class="modal-close" onclick="closeImportClienteModal()">&times;</button></div>
+  <div class="modal-body">
+    <label class="radio-block"><input type="radio" name="importClienteMode" value="existing" checked onchange="toggleImportClienteMode()"> Cliente esistente</label>
+    <div class="form-group" id="importExistingWrap"><label>Cliente</label><select id="importClienteId"></select></div>
+    <label class="radio-block"><input type="radio" name="importClienteMode" value="new" onchange="toggleImportClienteMode()"> Nuovo cliente</label>
+    <div id="importNewWrap" style="display:none">
+      <div class="reminder-box">Tutti obbligatori. Usa N.A. se manca un dato.</div>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr">
+        <div class="form-group"><label>Nome *</label><input id="importNewNome"></div>
+        <div class="form-group"><label>Codice *</label><input id="importNewCodice"></div>
+        <div class="form-group"><label>Citta *</label><input id="importNewCitta"></div>
+        <div class="form-group"><label>Note *</label><input id="importNewNote"></div>
+      </div>
+    </div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closeImportClienteModal()">Annulla</button><button class="btn-save" onclick="confirmImportCliente()">Continua</button></div>
+  </div>
+</div></div>
+
+<div id="clientiModal" class="modal-overlay"><div class="modal" style="max-width:760px">
+  <div class="modal-header"><h2>Clienti</h2><button class="modal-close" onclick="closeClientiModal()">&times;</button></div>
+  <div class="modal-body">
+    <div class="reminder-box">Tutti obbligatori. Usa N.A. se manca un dato.</div>
+    <input type="hidden" id="editClienteId">
+    <div class="form-grid">
+      <div class="form-group"><label>Nome *</label><input id="cliNome"></div>
+      <div class="form-group"><label>Codice *</label><input id="cliCodice"></div>
+      <div class="form-group"><label>Citta *</label><input id="cliCitta"></div>
+      <div class="form-group full"><label>Note *</label><input id="cliNote"></div>
+    </div>
+    <div class="form-actions" style="justify-content:flex-start">
+      <button class="btn btn-primary" onclick="saveCliente()">Salva</button>
+      <button class="btn-cancel" onclick="resetClienteForm()">Nuovo</button>
+    </div>
+    <table class="users-table"><thead><tr><th>Nome</th><th>Codice</th><th>Citta</th><th>DPC</th><th></th></tr></thead><tbody id="clientiTableBody"></tbody></table>
+  </div>
+</div></div>
+
+<div id="usersModal" class="modal-overlay"><div class="modal" style="max-width:820px">
+  <div class="modal-header"><h2>Utenti</h2><button class="modal-close" onclick="closeUsersModal()">&times;</button></div>
+  <div class="modal-body">
+    <input type="hidden" id="editUserId">
+    <div class="form-grid">
+      <div class="form-group"><label>Username *</label><input id="userUsername"></div>
+      <div class="form-group"><label>Nome</label><input id="userNome"></div>
+      <div class="form-group"><label>Password</label><input type="password" id="userPassword" placeholder="vuota = non cambia"></div>
+      <div class="form-group"><label>Ruolo</label><select id="userRole" onchange="toggleUserClienteField()"><option value="viewer">Viewer</option><option value="tecnico">Tecnico</option><option value="admin">Admin</option><option value="superadmin">Superadmin</option></select></div>
+      <div class="form-group full" id="wrapUserCliente"><label>Cliente assegnato</label><select id="userClienteId"><option value="">- nessuno -</option></select></div>
+    </div>
+    <div class="form-actions" style="justify-content:flex-start">
+      <button class="btn btn-primary" onclick="saveUser()">Salva</button>
+      <button class="btn-cancel" onclick="resetUserForm()">Nuovo</button>
+    </div>
+    <table class="users-table"><thead><tr><th>User</th><th>Nome</th><th>Ruolo</th><th>Cliente</th><th></th></tr></thead><tbody id="usersTableBody"></tbody></table>
+  </div>
+</div></div>
+
+<div id="historyModal" class="modal-overlay"><div class="modal modal-lg">
+  <div class="modal-header"><h2>Storico</h2><button class="modal-close" onclick="closeHistoryModal()">&times;</button></div>
+  <div class="modal-body">
+    <div class="device-info" id="historyDeviceInfo"></div>
+    <div id="historyEmpty" class="history-empty">Nessun intervento</div>
+    <div class="table-scroll"><table class="history-table" id="historyTable" style="display:none"><thead><tr><th>Data</th><th>Tecnico</th><th>Tipo</th><th>Note</th><th>File</th></tr></thead><tbody id="historyTableBody"></tbody></table></div>
+    <div id="historyAddSection" style="display:none">
+      <div class="section-title">Nuovo intervento</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Data *</label><input type="date" id="manData"></div>
+        <div class="form-group"><label>Tecnico *</label><input id="manTecnico"></div>
+        <div class="form-group"><label>Tipo *</label><select id="manTipo"><option value="">-</option><option>Manutenzione ordinaria</option><option>Manutenzione straordinaria</option><option>Verifica periodica</option><option>Sostituzione filtri</option><option>Altro</option></select></div>
+        <div class="form-group full"><label>Allegato</label><input type="file" id="manFile" accept=".pdf,image/*"><input type="url" id="manAllegato" placeholder="oppure link"></div>
+        <div class="form-group full"><label>Note</label><textarea id="manNote" rows="2"></textarea></div>
+        <div class="form-group full"><label class="checkbox-row"><input type="checkbox" id="manAggiornaUltime" checked> Aggiorna ultima man.</label></div>
+      </div>
+      <div class="form-actions"><button class="btn-save" id="btnSaveMan" onclick="saveManutenzione()">Salva</button></div>
+    </div>
+  </div>
+</div></div>
+
+<div id="reportModal" class="modal-overlay"><div class="modal modal-lg">
+  <div class="modal-header"><h2>Report</h2><button class="modal-close" onclick="closeReportModal()">&times;</button></div>
+  <div class="modal-body">
+    <div class="device-info" id="reportDeviceInfo"></div>
+    <div id="reportEmpty" class="history-empty">Nessun report</div>
+    <div class="table-scroll"><table class="history-table" id="reportTable" style="display:none"><thead><tr><th>N.</th><th>Data</th><th>Esito</th><th>Ente</th><th>PDF</th></tr></thead><tbody id="reportTableBody"></tbody></table></div>
+    <div id="reportAddSection" style="display:none">
+      <div class="section-title">Nuovo report</div>
+      <div class="form-grid">
+        <div class="form-group"><label>N. *</label><input id="repNumero"></div>
+        <div class="form-group"><label>Data *</label><input type="date" id="repData"></div>
+        <div class="form-group"><label>Esito *</label><select id="repEsito"><option value="">-</option><option>Conforme</option><option>Non conforme</option><option>Parziale</option><option>N.A.</option></select></div>
+        <div class="form-group"><label>Ente *</label><input id="repEnte" value="CAMI"></div>
+        <div class="form-group full"><label>PDF</label><input type="file" id="repFile" accept=".pdf"><input type="url" id="repLink" placeholder="oppure link"></div>
+        <div class="form-group full"><label>Note</label><textarea id="repNote" rows="2"></textarea></div>
+      </div>
+      <div class="form-actions"><button class="btn-save" id="btnSaveRep" onclick="saveReport()">Salva</button></div>
+    </div>
+  </div>
+</div></div>
+
+<div id="auditModal" class="modal-overlay"><div class="modal modal-lg">
+  <div class="modal-header"><h2>Storico modifiche</h2><button class="modal-close" onclick="closeAuditModal()">&times;</button></div>
+  <div class="modal-body">
+    <div id="auditEmpty" class="history-empty">Nessuna modifica</div>
+    <div class="table-scroll"><table class="history-table" id="auditTable" style="display:none">
+      <thead><tr><th>Data/Ora</th><th>Utente</th><th>Azione</th><th>Matricola</th><th>ID</th><th>Dettagli</th></tr></thead>
+      <tbody id="auditTableBody"></tbody>
+    </table></div>
+  </div>
+</div></div>
+
+<div id="confirmSaveModal" class="modal-overlay"><div class="modal" style="max-width:540px">
+  <div class="modal-header"><h2>Conferma salvataggio</h2><button class="modal-close" onclick="closeConfirmSave()">&times;</button></div>
+  <div class="modal-body">
+    <div class="device-info" id="confirmSaveIntro">Riepilogo</div>
+    <div id="confirmSaveList" style="font-size:.82rem;max-height:50vh;overflow:auto;white-space:pre-wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:.45rem;padding:.75rem;line-height:1.45"></div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeConfirmSave()">Annulla</button>
+      <button class="btn-save" onclick="finishSaveEquipment()">Conferma e salva</button>
+    </div>
+  </div>
+</div></div>
+
+<div id="toast" class="toast"></div>
+
+<div id="commentsModal" class="modal-overlay"><div class="modal" style="max-width:560px">
+  <div class="modal-header"><h2>Commenti DPC</h2><button class="modal-close" onclick="closeCommentsModal()">&times;</button></div>
+  <div class="modal-body">
+    <div class="device-info" id="commentsDeviceInfo"></div>
+    <div id="commentsList"></div>
+    <div class="form-group full" style="margin-top:.75rem"><label>Nuovo commento</label><textarea id="commentText" rows="3"></textarea></div>
+    <div class="form-actions"><button class="btn-save" onclick="saveComment()">Pubblica</button></div>
+  </div>
+</div></div>
+<div id="pacchettoModal" class="modal-overlay"><div class="modal" style="max-width:420px">
+  <div class="modal-header"><h2>Pacchetto cliente</h2><button class="modal-close" onclick="closePacchettoModal()">&times;</button></div>
+  <div class="modal-body">
+    <p style="font-size:.85rem;margin-bottom:.75rem">Esporta Excel di tutti i DPC del cliente (anagrafica + stadi filtri).</p>
+    <div class="form-group"><label>Cliente</label><select id="paccCliente"></select></div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closePacchettoModal()">Annulla</button><button class="btn-save" onclick="doPacchettoExport()">Esporta</button></div>
+  </div>
+</div></div>
+<div id="diffModal" class="modal-overlay"><div class="modal" style="max-width:520px">
+  <div class="modal-header"><h2>Conferma modifiche</h2><button class="modal-close" onclick="closeDiffModal()">&times;</button></div>
+  <div class="modal-body">
+    <p style="font-size:.85rem;margin-bottom:.5rem">Verranno salvate queste variazioni:</p>
+    <div class="diff-box"><ul id="diffList"></ul></div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closeDiffModal()">Annulla</button><button class="btn-save" id="btnConfirmDiff" onclick="confirmSaveEquipment()">Conferma e salva</button></div>
+  </div>
+</div></div>
+
+
+<div id="oggiModal" class="modal-overlay"><div class="modal modal-lg">
+  <div class="modal-header"><h2>Cosa fare oggi</h2><button class="modal-close" onclick="closeOggiModal()">&times;</button></div>
+  <div class="modal-body">
+    <div class="device-info">Manutenzioni e filtri scaduti o in scadenza (entro 30 giorni), ordinati per urgenza.</div>
+    <div id="oggiEmpty" class="history-empty">Nessuna scadenza da gestire</div>
+    <div id="oggiList"></div>
+  </div>
+</div></div>
+
+<div id="exportModal" class="modal-overlay"><div class="modal" style="max-width:480px">
+  <div class="modal-header"><h2>Export Excel filtrato</h2><button class="modal-close" onclick="closeExportModal()">&times;</button></div>
+  <div class="modal-body">
+    <div class="form-grid" style="grid-template-columns:1fr">
+      <div class="form-group"><label>Cliente</label><select id="expCliente"><option value="">Tutti</option></select></div>
+      <div class="form-group"><label>Stato DPC</label><select id="expStato"><option value="">Tutti</option><option>OPERATIVA</option><option>IN PRODUZIONE</option><option>MANUTENZIONE</option><option>DA INSTALLARE</option><option>IN DISUSO</option><option>DISMESSA</option><option>NON DI COMPETENZA CAMI</option></select></div>
+      <div class="form-group"><label>Scadenza</label><select id="expScadenza"><option value="">Tutte</option><option value="scaduti">Solo scaduti</option><option value="in_scadenza">Solo in scadenza</option><option value="ok">Solo in regola</option></select></div>
+      <div class="form-group"><label>Acronimo</label><select id="expAcronimo"><option value="">Tutti</option></select></div>
+    </div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closeExportModal()">Annulla</button><button class="btn-save" onclick="doExportCustom()"><i class="fas fa-file-excel"></i> Esporta</button></div>
+  </div>
+</div></div>
+
+<div id="printModal" class="modal-overlay"><div class="modal modal-lg">
+  <div class="modal-header"><h2>Scheda DPC</h2><button class="modal-close" onclick="closePrintModal()">&times;</button></div>
+  <div class="modal-body">
+    <div id="printContent"></div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closePrintModal()">Chiudi</button><button class="btn-save" onclick="window.print()"><i class="fas fa-print"></i> Stampa / PDF</button></div>
+  </div>
+</div></div>
+
+<script>
+
+const SUPABASE_URL="https://josevxlanibnlumpbxjl.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_XyAfO9cKakVWTjbLHrA3Fw_mZGGG0rI";
+const EMAILJS_PUBLIC_KEY="XGGJp7eun1r8VUpbn";
+const EMAILJS_SERVICE_ID="service_4dw9ce7";
+const EMAILJS_TEMPLATE_ID="template_ei9fawo";
+const SESSION_KEY="lab_session_cami_v15";
+const LAST_EMAIL_KEY="lab_last_email_cami";
+const LAST_BACKUP_KEY="lab_last_backup_cami";
+const DAYS_WARNING=30;
+const DAYS_WARN_7=7;
+const DAYS_WARN_15=15;
+const BACKUP_DAYS=7;
+const STATI_DPC=["OPERATIVA","IN PRODUZIONE","MANUTENZIONE","DA INSTALLARE","IN DISUSO","DISMESSA","NON DI COMPETENZA CAMI"];
+var sb,equipment=[],clienti=[],users=[],currentUser=null;
+var currentHistoryEquipId=null,currentReportEquipId=null,currentCanEdit=false,pendingExcelFile=null;
+try{if(typeof emailjs!=="undefined")emailjs.init(EMAILJS_PUBLIC_KEY);}catch(e){}
+function toast(m){var t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(function(){t.classList.remove("show");},2500);}
+
+function storageErrorMsg(err,bucket){
+  var m=(err&&err.message)?err.message:String(err||"errore sconosciuto");
+  var b=bucket||"foto";
+  return "Errore upload su Storage (bucket: "+b+"):\n"+m+
+    "\n\nCome sistemare le policy:"+
+    "\n1) Supabase > Storage > bucket "+b+
+    "\n2) Rendi il bucket Public"+
+    "\n3) Policies: INSERT + SELECT per bucket_id = "+b+
+    "\n4) SQL:"+
+    "\ncreate policy allow_upload on storage.objects for insert to public with check (bucket_id = '"+b+"');"+
+    "\ncreate policy allow_read on storage.objects for select to public using (bucket_id = '"+b+"');";
+}
+function statusFiltroBadge(st){if(st==="SCADUTO")return '<span class="status-badge status-scaduto">SCADUTO</span>';if(st==="IN SCADENZA")return '<span class="status-badge status-soon">IN SCADENZA</span>';if(st==="OK")return '<span class="status-badge status-ok">OK</span>';return '<span class="status-badge status-nd">-</span>';}
+function filterCodesText(e){var fs=e.filtriStadi||{},parts=[];for(var i=1;i<=4;i++){var s=fs[String(i)];if(s&&s.codice)parts.push(s.codice);}return parts.join(" ");}
+function clienteCode(id){var c=clienti.find(function(x){return x.id===id;});return c?(c.codice||""):"";}
+
+function isSuper(){return currentUser&&currentUser.role==="superadmin";}
+function isAdmin(){return currentUser&&currentUser.role==="admin";}
+function isTecnico(){return currentUser&&currentUser.role==="tecnico";}
+function canEditCliente(cid){if(!currentUser)return false;if(currentUser.role==="superadmin")return true;if((currentUser.role==="admin"||currentUser.role==="tecnico")&&currentUser.clienteId&&cid===currentUser.clienteId)return true;return false;}
+function canCreateDpc(){return isSuper()||(currentUser&&currentUser.role==="admin"&&!!currentUser.clienteId);}
+function canEditAnagrafica(cid){if(!currentUser)return false;if(currentUser.role==="superadmin")return true;if(currentUser.role==="admin"&&currentUser.clienteId&&cid===currentUser.clienteId)return true;return false;}
+function canEditInterventi(cid){return canEditCliente(cid);}
+function visibleEquipment(){if(isSuper())return equipment.slice();if(currentUser&&currentUser.clienteId&&(isAdmin()||isTecnico()))return equipment.filter(function(e){return e.clienteId===currentUser.clienteId;});return equipment.slice();}
+function clienteName(id){var c=clienti.find(function(x){return x.id===id;});return c?c.nome:"-";}
+function clienteBadge(id){var colors=["#dbeafe","#dcfce7","#fce7f3","#fef3c7","#e0e7ff","#ffedd5","#f3e8ff","#ccfbf1"];var i=0;if(id){for(var k=0;k<id.length;k++)i=(i+id.charCodeAt(k))%colors.length;}return '<span class="badge" style="background:'+colors[i]+';color:#1e293b">'+clienteName(id)+'</span>';}
+function mapEquip(r){return{id:r.id,clienteId:r.cliente_id,acronimo:r.acronimo||"",costruttore:r.costruttore||"",modello:r.modello||"",matricola:r.matricola||"",idDispositivo:r.id_dispositivo||"",ultimaMan:r.ultima_man||"",prossimaMan:r.prossima_man||"",sede:r.sede||"",edificio:r.edificio||"",laboratorio:r.laboratorio||"",piano:r.piano||"",stanza:r.stanza||"",stato:r.stato||"",responsabile:r.responsabile||"",cadenzaMan:r.cadenza_man||"",tipoAttivita:r.tipo_attivita||[],haSistemaFiltrante:r.ha_sistema_filtrante||"no",stadiFiltranti:r.stadi_filtranti||"",accessori:r.accessori||"",note:r.note||"",filtriStadi:r.filtri_stadi||{},fotoUrl:r.foto_url||"",fotoPath:r.foto_path||""};}
+function fmt(d){if(!d)return"-";var p=String(d).split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:d;}
+function daysUntil(d){if(!d)return null;var t=new Date(d),n=new Date();n.setHours(0,0,0,0);t.setHours(0,0,0,0);return Math.ceil((t-n)/86400000);}
+function isOverdue(d){var x=daysUntil(d);return x!==null&&x<0;}
+function isSoon(d){var x=daysUntil(d);return x!==null&&x>=0&&x<=DAYS_WARNING;}
+function isSoonTier(d,maxD){var x=daysUntil(d);return x!==null&&x>=0&&x<=maxD;}
+function expStatus(d){if(!d)return"none";if(isOverdue(d))return"overdue";var x=daysUntil(d);if(x===null)return"none";if(x<=DAYS_WARN_7)return"soon7";if(x<=DAYS_WARN_15)return"soon15";if(x<=DAYS_WARNING)return"soon30";return"ok";}
+function expStatusSimple(d){var s=expStatus(d);if(s==="overdue")return"overdue";if(s==="soon7"||s==="soon15"||s==="soon30")return"soon";if(s==="ok")return"ok";return"none";}
+function statusBadge(s){var m={"OPERATIVA":"badge-teal","IN PRODUZIONE":"badge-green","MANUTENZIONE":"badge-amber","DA INSTALLARE":"badge-blue","DISMESSA":"badge-rose"};return '<span class="badge '+(m[s]||"badge-gray")+'">'+(s||"-")+'</span>';}
+function getTipo(){var a=[];document.querySelectorAll('input[name="tipoAtt"]:checked').forEach(function(c){a.push(c.value);});return a;}
+function setTipo(arr){document.querySelectorAll('input[name="tipoAtt"]').forEach(function(c){c.checked=arr&&arr.indexOf(c.value)>-1;});}
+function safeName(n){return String(n||"file").replace(/[^a-zA-Z0-9._-]/g,"_");}
+function reqNA(v){return String(v||"").trim();}
+function val(id){var el=document.getElementById(id);return el?el.value.trim():"";}
+function setv(id,v){var el=document.getElementById(id);if(el)el.value=v||"";}
+function emptyStage(){return{codice:"",misure:"",tipologia:"",qty:"",correlazione:"",data_install:"",durata_mesi:"",prox:"",status:""};}
+function calcProx(di,dm){if(!di||!dm)return"";var m=parseInt(dm,10);if(isNaN(m)||m<=0)return"";var d=new Date(di+"T00:00:00");if(isNaN(d.getTime()))return"";d.setMonth(d.getMonth()+m);return d.toISOString().slice(0,10);}
+function autoFilterStatus(prox){if(!prox)return"";var days=daysUntil(prox);if(days===null)return"";if(days<0)return"SCADUTO";if(days<=DAYS_WARNING)return"IN SCADENZA";return"OK";}
+function refreshStageStatus(n){var proxEl=document.getElementById("s"+n+"_prox");var statusEl=document.getElementById("s"+n+"_status");if(!proxEl||!statusEl)return;var p=proxEl.value;statusEl.value=autoFilterStatus(p);}
+function parseNumStadi(label){if(!label)return 0;var m=String(label).match(/(\d)/);if(m)return parseInt(m[1],10);var n=parseInt(label,10);return isNaN(n)?0:n;}
+function stageProxList(e){var out=[],fs=(e&&e.filtriStadi)?e.filtriStadi:{};for(var i=1;i<=4;i++){var s=fs[String(i)];if(!s)continue;var prox=s.prox||"";if(!prox)prox=calcProx(s.data_install,s.durata_mesi);if(prox)out.push({stadio:i,prox:prox,status:expStatus(prox),codice:s.codice||""});}return out;}
+function worstStageStatus(e){var list=stageProxList(e),worst="none";list.forEach(function(x){var s=expStatusSimple(x.prox||"");if(s==="overdue")worst="overdue";else if(s==="soon"&&worst!=="overdue")worst="soon";else if(s==="ok"&&worst==="none")worst="ok";});return worst;}
+function nextFilterProx(e){var list=stageProxList(e);if(!list.length)return null;var o=list.filter(function(x){return expStatusSimple(x.prox)==="overdue";});if(o.length){o.sort(function(a,b){return String(a.prox).localeCompare(String(b.prox));});return o[0];}var s=list.filter(function(x){return expStatusSimple(x.prox)==="soon";});if(s.length){s.sort(function(a,b){return String(a.prox).localeCompare(String(b.prox));});return s[0];}list.sort(function(a,b){return String(a.prox).localeCompare(String(b.prox));});return list[0];}
+function deviceExpiryStatus(e){var man=expStatusSimple(e.prossimaMan),st=worstStageStatus(e);if(man==="overdue"||st==="overdue")return"overdue";if(man==="soon"||st==="soon")return"soon";if(man==="ok"||st==="ok")return"ok";return"none";}
+function deviceExpiryTier(e){var worst="ok",dates=[];if(e.prossimaMan)dates.push(e.prossimaMan);stageProxList(e).forEach(function(x){if(x.prox)dates.push(x.prox);});if(!dates.length)return"none";dates.forEach(function(d){var s=expStatus(d);if(s==="overdue")worst="overdue";else if(s==="soon7"&&worst!=="overdue")worst="soon7";else if(s==="soon15"&&worst!=="overdue"&&worst!=="soon7")worst="soon15";else if(s==="soon30"&&(worst==="ok"||worst==="none"))worst="soon30";});return worst;}
+function countStadi(fs){if(!fs)return 0;return Object.keys(fs).filter(function(k){var s=fs[k];return s&&(s.codice||s.misure||s.tipologia||s.prox||s.data_install);}).length;}
+function buildStadiForm(){var box=document.getElementById("stadiBox");if(!box)return;var h="";for(var i=1;i<=4;i++){h+='<div class="stadio-card" id="stadioCard'+i+'" style="display:none"><h4>'+i+'o Stadio</h4><div class="stadio-grid"><div><label>Codice filtro</label><input id="s'+i+'_codice"></div><div><label>Misure (mm)</label><input id="s'+i+'_misure"></div><div><label>Tipologia</label><select id="s'+i+'_tipologia"><option value="">-</option><option value="P">P Particolare</option><option value="M">M Molecolare</option></select></div><div><label>Q.ta</label><input id="s'+i+'_qty"></div><div><label>Correlazione</label><input id="s'+i+'_correlazione"></div><div><label>Data install.</label><input type="date" id="s'+i+'_data"></div><div><label>Durata mesi</label><input id="s'+i+'_durata" type="number" min="1"></div><div><label>Prox. sostituz.</label><input type="date" id="s'+i+'_prox"></div><div><label>Status (auto)</label><input id="s'+i+'_status" readonly style="background:#f1f5f9;font-weight:600" placeholder="automatico"></div></div></div>';}box.innerHTML=h;bindStageAutoProx();updateStadiVisibility();}
+function updateStadiVisibility(){var n=parseNumStadi(val("stadiFiltranti"));for(var i=1;i<=4;i++){var card=document.getElementById("stadioCard"+i);if(card)card.style.display=(i<=n)?"block":"none";}var hint=document.getElementById("stadiSectionHint");if(hint)hint.textContent=n>0?("Compila i "+n+" stadi filtranti dichiarati."):"Seleziona prima il N. Stadi per visualizzare i dettagli filtro.";}
+function bindStageAutoProx(){for(var i=1;i<=4;i++){(function(n){var dataEl=document.getElementById("s"+n+"_data"),durEl=document.getElementById("s"+n+"_durata"),proxEl=document.getElementById("s"+n+"_prox"),statusEl=document.getElementById("s"+n+"_status");if(!dataEl||!durEl||!proxEl)return;var applyStatus=function(){var st=autoFilterStatus(proxEl.value);if(statusEl){statusEl.value=st;statusEl.style.color=st==="SCADUTO"?"#dc2626":(st==="IN SCADENZA"?"#ea580c":(st==="OK"?"#047857":"#64748b"));}};var calc=function(){var p=calcProx(dataEl.value,durEl.value);if(p)proxEl.value=p;applyStatus();};dataEl.addEventListener("change",calc);durEl.addEventListener("change",calc);durEl.addEventListener("input",calc);proxEl.addEventListener("change",applyStatus);})(i);}}
+function collectFiltriStadi(){var out={},n=parseNumStadi(val("stadiFiltranti")),max=n>0?n:0;for(var i=1;i<=max;i++){var s={codice:val("s"+i+"_codice"),misure:val("s"+i+"_misure"),tipologia:val("s"+i+"_tipologia"),qty:val("s"+i+"_qty"),correlazione:val("s"+i+"_correlazione"),data_install:val("s"+i+"_data"),durata_mesi:val("s"+i+"_durata"),prox:val("s"+i+"_prox"),status:""};if(!s.prox)s.prox=calcProx(s.data_install,s.durata_mesi);s.status=autoFilterStatus(s.prox);if(s.codice||s.misure||s.tipologia||s.qty||s.data_install||s.prox||s.status)out[String(i)]=s;}return out;}
+function fillFiltriStadi(data){data=data||{};for(var i=1;i<=4;i++){var s=data[String(i)]||emptyStage();setv("s"+i+"_codice",s.codice);setv("s"+i+"_misure",s.misure);setv("s"+i+"_tipologia",s.tipologia);setv("s"+i+"_qty",s.qty);setv("s"+i+"_correlazione",s.correlazione);setv("s"+i+"_data",s.data_install);setv("s"+i+"_durata",s.durata_mesi);var px=s.prox||calcProx(s.data_install,s.durata_mesi);setv("s"+i+"_prox",px);var st=autoFilterStatus(px);setv("s"+i+"_status",st);var statusEl=document.getElementById("s"+i+"_status");if(statusEl)statusEl.style.color=st==="SCADUTO"?"#dc2626":(st==="IN SCADENZA"?"#ea580c":(st==="OK"?"#047857":"#64748b"));}if(!val("stadiFiltranti")){var maxK=0;Object.keys(data).forEach(function(k){var num=parseInt(k,10);if(!isNaN(num)&&num>maxK)maxK=num;});if(maxK>0)setv("stadiFiltranti",String(maxK));}updateStadiVisibility();}
+async function logAudit(azione,eq,dettagli){try{await sb.from("audit_log").insert([{equip_id:eq&&eq.id?eq.id:null,matricola:eq?eq.matricola||"":"",id_dispositivo:eq?eq.idDispositivo||"":"",username:currentUser?currentUser.username:"?",azione:azione,dettagli:dettagli||""}]);}catch(e){console.warn("audit",e);}}
+function checkAutoBackup(){try{var last=parseInt(localStorage.getItem(LAST_BACKUP_KEY)||"0",10);if(!last||(Date.now()-last)>BACKUP_DAYS*86400000){if(confirm("Backup automatico: esportare Excel adesso? (ogni "+BACKUP_DAYS+" giorni)"))exportExcel(true);}}catch(e){}}
+function showFotoPreview(url){var img=document.getElementById("fotoPreview");if(!img)return;if(url){img.src=url;img.classList.add("show");}else{img.src="";img.classList.remove("show");}}
+async function uploadFotoIfAny(equipId){var fileInput=document.getElementById("fotoFile");var file=fileInput&&fileInput.files&&fileInput.files[0];if(!file)return{url:document.getElementById("fotoUrl").value||"",path:document.getElementById("fotoPath").value||""};var path=(equipId||"tmp")+"/"+Date.now()+"_"+safeName(file.name);var up=await sb.storage.from("foto").upload(path,file,{upsert:true});if(up.error)throw up.error;return{url:sb.storage.from("foto").getPublicUrl(path).data.publicUrl,path:path};}
+
+async function loadAll(){var c=await sb.from("clienti").select("*").order("nome");if(c.error)throw c.error;clienti=c.data||[];var e=await sb.from("equipment").select("*").order("matricola");if(e.error)throw e.error;equipment=(e.data||[]).map(mapEquip);var u=await sb.from("users").select("*").order("username");if(u.error)throw u.error;users=u.data||[];fillFilters();updatePermBanner();renderStats();renderClientStats();renderTable();updateExpiry();}
+function updatePermBanner(){var el=document.getElementById("permBanner");if(isSuper())el.textContent="Superadmin - gestione completa.";else if(isAdmin()&&currentUser.clienteId)el.textContent="Admin di "+clienteName(currentUser.clienteId)+" - puoi modificare anagrafica e interventi.";else if(isTecnico()&&currentUser.clienteId)el.textContent="Tecnico di "+clienteName(currentUser.clienteId)+" - puoi gestire storico e report.";else el.textContent="Sola lettura";}
+function fillFilters(){var fc=document.getElementById("filterCliente"),cur=fc.value;fc.innerHTML='<option value="">Tutti i clienti</option>';clienti.forEach(function(c){fc.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});fc.value=cur;var ac={},se={};equipment.forEach(function(e){if(e.acronimo)ac[e.acronimo]=1;if(e.sede)se[e.sede]=1;});var fa=document.getElementById("filterAcronimo"),ca=fa.value;fa.innerHTML='<option value="">Acronimi</option>';Object.keys(ac).sort().forEach(function(a){fa.innerHTML+='<option>'+a+'</option>';});fa.value=ca;var fs=document.getElementById("filterSede"),cs=fs.value;fs.innerHTML='<option value="">Sedi</option>';Object.keys(se).sort().forEach(function(s){fs.innerHTML+='<option>'+s+'</option>';});fs.value=cs;var sel=document.getElementById("clienteId");if(sel){var v=sel.value;sel.innerHTML='<option value="">Seleziona...</option>';clienti.forEach(function(c){sel.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});sel.value=v;}var uc=document.getElementById("userClienteId");if(uc){uc.innerHTML='<option value="">- nessuno -</option>';clienti.forEach(function(c){uc.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});}}
+function renderStats(){var sc=0,so=0;var eqList=visibleEquipment();eqList.forEach(function(e){var d=deviceExpiryStatus(e);if(d==="overdue")sc++;else if(d==="soon")so++;});document.getElementById("statsContainer").innerHTML='<div class="stat-card"><div class="stat-value">'+eqList.length+'</div><div class="stat-label">DPC</div></div><div class="stat-card"><div class="stat-value">'+clienti.length+'</div><div class="stat-label">Clienti</div></div><div class="stat-card"><div class="stat-value">'+eqList.filter(function(e){return e.stato==="OPERATIVA"||e.stato==="IN PRODUZIONE";}).length+'</div><div class="stat-label">Operative</div></div><div class="stat-card"><div class="stat-value '+(sc?"stat-red":"")+'">'+sc+'</div><div class="stat-label">Scaduti</div></div><div class="stat-card"><div class="stat-value '+(so?"stat-orange":"")+'">'+so+'</div><div class="stat-label">In scadenza</div></div><div class="stat-card"><div class="stat-value">'+users.length+'</div><div class="stat-label">Utenti</div></div>';}
+function renderClientStats(){var counts={};equipment.forEach(function(e){var k=e.clienteId||"_";counts[k]=(counts[k]||0)+1;});var html="";clienti.forEach(function(c){html+='<span class="client-chip">'+c.nome+': <strong>'+(counts[c.id]||0)+'</strong></span>';});document.getElementById("clientStats").innerHTML=html;}
+function updateExpiry(){var scMan=0,soMan=0,scFil=0,soFil=0;visibleEquipment().forEach(function(e){if(isOverdue(e.prossimaMan))scMan++;else if(isSoon(e.prossimaMan))soMan++;stageProxList(e).forEach(function(x){if(x.status==="overdue")scFil++;else if(x.status==="soon")soFil++;});});var sc=scMan+scFil,so=soMan+soFil;var box=document.getElementById("expiryAlert"),tx=document.getElementById("expiryAlertText");if(!sc&&!so){box.classList.remove("show","danger");return;}var p=[];if(scMan)p.push("<strong>"+scMan+" man. scadute</strong>");if(soMan)p.push("<strong>"+soMan+" man. in scadenza</strong>");if(scFil)p.push("<strong>"+scFil+" filtri scaduti</strong>");if(soFil)p.push("<strong>"+soFil+" filtri in scadenza</strong>");tx.innerHTML=p.join(" - ");box.classList.add("show");if(sc)box.classList.add("danger");else box.classList.remove("danger");}
+function filterExpiring(){var hasOver=equipment.some(function(e){return deviceExpiryStatus(e)==="overdue";});document.getElementById("filterScadenza").value=hasOver?"scaduti":"in_scadenza";renderTable();}
+function renderTable(){try{refreshBell();}catch(ex){}var q=document.getElementById("searchInput").value.toLowerCase(),fcl=document.getElementById("filterCliente").value,fac=document.getElementById("filterAcronimo").value,fse=document.getElementById("filterSede").value,fst=document.getElementById("filterStato").value,ffi=document.getElementById("filterFiltro").value,fsc=document.getElementById("filterScadenza").value;var baseList=visibleEquipment();var list=baseList.filter(function(e){var ms=!q||[e.matricola,e.idDispositivo,e.modello,e.sede,e.acronimo,clienteName(e.clienteId),clienteCode(e.clienteId),e.responsabile,filterCodesText(e)].join(" ").toLowerCase().indexOf(q)>-1;var dest=deviceExpiryStatus(e),msc=true;if(fsc==="scaduti")msc=dest==="overdue";else if(fsc==="in_scadenza")msc=dest==="soon";else if(fsc==="d7"){var t=deviceExpiryTier(e);msc=t==="overdue"||t==="soon7";}else if(fsc==="d15"){var t=deviceExpiryTier(e);msc=t==="overdue"||t==="soon7"||t==="soon15";}else if(fsc==="d30")msc=dest==="overdue"||dest==="soon";else if(fsc==="ok")msc=dest==="ok"||dest==="none";return ms&&(!fcl||e.clienteId===fcl)&&(!fac||e.acronimo===fac)&&(!fse||e.sede===fse)&&(!fst||e.stato===fst)&&(!ffi||e.haSistemaFiltrante===ffi)&&msc;});list.sort(function(a,b){var o={overdue:0,soon:1,ok:2,none:3},sa=deviceExpiryStatus(a),sb=deviceExpiryStatus(b);if(o[sa]!==o[sb])return o[sa]-o[sb];return(a.matricola||"").localeCompare(b.matricola||"");});var tb=document.getElementById("tableBody"),empty=document.getElementById("emptyState");if(!list.length){tb.innerHTML="";empty.classList.add("show");return;}empty.classList.remove("show");var html="";list.forEach(function(e){var st=deviceExpiryStatus(e),row=st==="overdue"?"row-overdue":(st==="soon"?"row-soon":"");var manSt=expStatus(e.prossimaMan),dc=manSt==="overdue"?"overdue":(manSt==="soon"?"soon":"");var days="";if(manSt==="overdue")days=" <small>(-"+Math.abs(daysUntil(e.prossimaMan))+"g)</small>";else if(manSt==="soon")days=" <small>("+daysUntil(e.prossimaMan)+"g)</small>";var nf=nextFilterProx(e),filCell="-";if(nf){var fdc=nf.status==="overdue"?"overdue":(nf.status==="soon"?"soon":"");var fd="";if(nf.status==="overdue")fd=" <small>(-"+Math.abs(daysUntil(nf.prox))+"g)</small>";else if(nf.status==="soon")fd=" <small>("+daysUntil(nf.prox)+"g)</small>";filCell='<span class="'+fdc+'">S'+nf.stadio+' '+fmt(nf.prox)+fd+'</span>';}
+    var stFil="-";if(nf){stFil=statusFiltroBadge(autoFilterStatus(nf.prox));}else{var fs=e.filtriStadi||{};for(var si=1;si<=4;si++){var ss=fs[String(si)];if(ss&&ss.prox){stFil=statusFiltroBadge(autoFilterStatus(ss.prox));break;}}}var att=(e.tipoAttivita&&e.tipoAttivita.length)?e.tipoAttivita.join(", "):"-";var filtro=e.haSistemaFiltrante==="si"?'<span class="badge badge-blue">Si</span>':'<span class="badge badge-gray">No</span>';var nSt=countStadi(e.filtriStadi),stadiTxt=nSt?(nSt+"o"):(e.stadiFiltranti||"-");var canInt=canEditInterventi(e.clienteId);var canAna=canEditAnagrafica(e.clienteId);var az='<button class="btn-icon history" title="Storico" onclick="openHistory(\''+e.id+'\')"><i class="fas fa-history"></i></button><button class="btn-icon report" title="Report" onclick="openReport(\''+e.id+'\')"><i class="fas fa-file-alt"></i></button><button class="btn-icon" title="Commenti" style="color:#7c3aed" onclick="openComments(\''+e.id+'\')"><i class="fas fa-comments"></i></button><button class="btn-icon" title="Scheda/Stampa" style="color:#0369a1" onclick="openPrintScheda(\''+e.id+'\')"><i class="fas fa-print"></i></button>';if(canAna)az+='<button class="btn-icon" title="Duplica" style="color:#0f766e" onclick="duplicaEquipment(\''+e.id+'\')"><i class="fas fa-copy"></i></button><button class="btn-icon edit" title="Modifica" onclick="editEquipment(\''+e.id+'\')"><i class="fas fa-pen"></i></button><button class="btn-icon delete" title="Elimina" onclick="deleteEquipment(\''+e.id+'\')"><i class="fas fa-trash"></i></button>';html+='<tr class="'+row+'"><td>'+clienteBadge(e.clienteId)+'</td><td><strong>'+(e.acronimo||"-")+'</strong></td><td class="truncate">'+(e.costruttore||"-")+'</td><td class="truncate">'+(e.modello||"-")+'</td><td class="code">'+(e.matricola||"-")+'</td><td class="code">'+(e.idDispositivo||"-")+'</td><td>'+fmt(e.ultimaMan)+'</td><td class="'+dc+'">'+fmt(e.prossimaMan)+days+'</td><td>'+filCell+'</td><td>'+stFil+'</td><td>'+(e.sede||"-")+'</td><td class="truncate">'+(e.edificio||"-")+'</td><td class="truncate">'+(e.laboratorio||"-")+'</td><td>'+(e.piano||"-")+'</td><td>'+(e.stanza||"-")+'</td><td>'+statusBadge(e.stato)+'</td><td class="truncate">'+(e.responsabile||"-")+'</td><td>'+(e.cadenzaMan||"-")+'</td><td>'+att+'</td><td>'+filtro+'</td><td>'+stadiTxt+'</td><td class="truncate">'+(e.accessori||"-")+'</td><td class="truncate">'+(e.note||"-")+'</td><td><div class="actions">'+az+'</div></td></tr>';});tb.innerHTML=html;}
+async function doLogin(){var u=document.getElementById("loginUsername").value.trim(),p=document.getElementById("loginPassword").value,err=document.getElementById("loginError");if(!u||!p){err.textContent="Inserisci credenziali";err.classList.add("show");return;}var res=await sb.from("users").select("*").eq("username",u).limit(1);if(res.error){err.textContent=res.error.message;err.classList.add("show");return;}if(!res.data.length||res.data[0].password!==p){err.textContent="Credenziali non corrette";err.classList.add("show");return;}var row=res.data[0];currentUser={id:row.id,username:row.username,nome:row.nome||row.username,role:row.role,clienteId:row.cliente_id||null};sessionStorage.setItem(SESSION_KEY,JSON.stringify(currentUser));err.classList.remove("show");
+  try{await sb.from("users").update({last_login:new Date().toISOString()}).eq("id",row.id);}catch(e){}
+  try{await logAudit("LOGIN",null,"Accesso "+currentUser.username+" ("+currentUser.role+")");}catch(e){}
+  showApp();}
+function doLogout(){currentUser=null;sessionStorage.removeItem(SESSION_KEY);document.getElementById("app").classList.remove("show");document.getElementById("loginScreen").classList.remove("hidden");}
+function checkSession(){try{var s=sessionStorage.getItem(SESSION_KEY);if(s){currentUser=JSON.parse(s);showApp();return;}}catch(e){}document.getElementById("loginScreen").classList.remove("hidden");}
+async function showApp(){document.getElementById("loginScreen").classList.add("hidden");document.getElementById("app").classList.add("show");document.getElementById("currentUserName").textContent=currentUser.nome;document.getElementById("currentUserRole").textContent="("+currentUser.role+")";var s=isSuper(),c=canCreateDpc(),t=isTecnico(),a=isAdmin();document.getElementById("btnNuovo").style.display=c?"inline-flex":"none";document.getElementById("btnUsers").style.display=s?"inline-flex":"none";document.getElementById("btnClienti").style.display=s?"inline-flex":"none";document.getElementById("btnEmail").style.display=(s||a||t)?"inline-flex":"none";document.getElementById("btnImport").style.display=s?"inline-flex":"none";document.getElementById("btnImportExcel").style.display=s?"inline-flex":"none";document.getElementById("btnAudit").style.display=s?"inline-flex":"none";document.getElementById("btnBackup").style.display=(s||a)?"inline-flex":"none";var bo=document.getElementById("btnOggi");if(bo)bo.style.display=(s||a||t)?"inline-flex":"none";var be=document.getElementById("btnExportCustom");if(be)be.style.display=(s||a)?"inline-flex":"none";
+  var br=document.getElementById("btnReportMensile");if(br)br.style.display=(s||a)?"inline-flex":"none";
+  var bp=document.getElementById("btnPacchetto");if(bp)bp.style.display=(s||a)?"inline-flex":"none";
+  setTimeout(refreshBell,500);await loadAll();if(s||a||t)setTimeout(function(){sendExpiryEmail(false);},2000);if(s)setTimeout(checkAutoBackup,2500);}
+function openModal(id){if(!canCreateDpc()&&!id)return;fillFilters();buildStadiForm();document.getElementById("modal").classList.add("show");document.getElementById("editId").value="";["acronimo","costruttore","modello","matricola","idDispositivo","ultimaMan","prossimaMan","sede","edificio","laboratorio","piano","stanza","responsabile","cadenzaMan","stadiFiltranti","accessori","note"].forEach(function(f){var el=document.getElementById(f);if(el)el.value="";});document.getElementById("stato").value="OPERATIVA";document.getElementById("haSistemaFiltrante").value="no";setTipo([]);fillFiltriStadi({});document.getElementById("fotoUrl").value="";document.getElementById("fotoPath").value="";var ff=document.getElementById("fotoFile");if(ff)ff.value="";showFotoPreview("");var sel=document.getElementById("clienteId");if(isSuper()){sel.disabled=false;sel.value="";}else{sel.value=currentUser.clienteId||"";sel.disabled=true;}if(id){var e=equipment.find(function(x){return x.id===id;});if(!e||!canEditAnagrafica(e.clienteId)){alert("Non autorizzato");closeModal();return;}document.getElementById("modalTitle").textContent="Modifica DPC";document.getElementById("editId").value=e.id;document.getElementById("clienteId").value=e.clienteId||"";if(!isSuper())sel.disabled=true;document.getElementById("acronimo").value=e.acronimo;document.getElementById("costruttore").value=e.costruttore;document.getElementById("modello").value=e.modello;document.getElementById("matricola").value=e.matricola;document.getElementById("idDispositivo").value=e.idDispositivo;document.getElementById("ultimaMan").value=e.ultimaMan;document.getElementById("prossimaMan").value=e.prossimaMan;document.getElementById("sede").value=e.sede;document.getElementById("edificio").value=e.edificio;document.getElementById("laboratorio").value=e.laboratorio;document.getElementById("piano").value=e.piano;document.getElementById("stanza").value=e.stanza;document.getElementById("stato").value=e.stato||"OPERATIVA";document.getElementById("responsabile").value=e.responsabile;document.getElementById("cadenzaMan").value=e.cadenzaMan;document.getElementById("haSistemaFiltrante").value=e.haSistemaFiltrante||"no";document.getElementById("stadiFiltranti").value=String(parseNumStadi(e.stadiFiltranti)||"");document.getElementById("accessori").value=e.accessori;document.getElementById("note").value=e.note;setTipo(e.tipoAttivita||[]);fillFiltriStadi(e.filtriStadi||{});document.getElementById("fotoUrl").value=e.fotoUrl||"";document.getElementById("fotoPath").value=e.fotoPath||"";showFotoPreview(e.fotoUrl||"");}else {document.getElementById("modalTitle").textContent="Nuovo DPC";checkSoftBlock(null);}updateStadiVisibility();if(id){var ee=equipment.find(function(x){return x.id===id;});checkSoftBlock(ee);}else checkSoftBlock(null);}
+function closeModal(){document.getElementById("modal").classList.remove("show");document.getElementById("clienteId").disabled=false;}
+function editEquipment(id){openModal(id);}
+async function saveEquipment(){var cliente_id=document.getElementById("clienteId").value;if(!isSuper())cliente_id=currentUser.clienteId;if(!canEditAnagrafica(cliente_id)){alert("Non puoi modificare questo cliente");return;}var id=document.getElementById("editId").value;var acronimo=document.getElementById("acronimo").value,matricola=document.getElementById("matricola").value.trim(),idDispositivo=document.getElementById("idDispositivo").value.trim(),sede=document.getElementById("sede").value.trim();if(!cliente_id||!acronimo||!matricola||!idDispositivo||!sede){alert("Compila i campi obbligatori");return;}
+  var sedeKey=(sede||"").trim().toLowerCase();
+    var sedeNorm=sede.toLowerCase();
+  var dupMat=equipment.find(function(x){return x.clienteId===cliente_id&&x.id!==id&&String(x.matricola||"").toLowerCase()===matricola.toLowerCase()&&String(x.sede||"").toLowerCase()===sedeNorm;});
+  if(dupMat){alert("Matricola gia presente per questo cliente e sede:\n"+dupMat.acronimo+" · Matricola: "+dupMat.matricola+" · ID: "+dupMat.idDispositivo+" · Sede: "+(dupMat.sede||"-"));return;}
+  var dupId=equipment.find(function(x){return x.clienteId===cliente_id&&x.id!==id&&String(x.idDispositivo||"").toLowerCase()===idDispositivo.toLowerCase()&&String(x.sede||"").toLowerCase()===sedeNorm;});
+  if(dupId){alert("ID dispositivo gia presente per questo cliente e sede:\n"+dupId.acronimo+" · Matricola: "+dupId.matricola+" · ID: "+dupId.idDispositivo+" · Sede: "+(dupId.sede||"-"));return;}
+var filtri=collectFiltriStadi(),nSt=Object.keys(filtri).length;var stadiRaw=document.getElementById("stadiFiltranti").value,nDecl=parseNumStadi(stadiRaw);var stadiLabel=nDecl>0?(nDecl+" Stadio"):(stadiRaw||(nSt?nSt+" Stadio":""));var foto={url:document.getElementById("fotoUrl").value||"",path:document.getElementById("fotoPath").value||""};try{foto=await uploadFotoIfAny(id||"new");}catch(fe){alert(storageErrorMsg(fe,"foto"));return;}var row={cliente_id:cliente_id,acronimo:acronimo,costruttore:document.getElementById("costruttore").value.trim(),modello:document.getElementById("modello").value.trim(),matricola:matricola,id_dispositivo:idDispositivo,ultima_man:document.getElementById("ultimaMan").value||null,prossima_man:document.getElementById("prossimaMan").value||null,sede:sede,edificio:document.getElementById("edificio").value.trim(),laboratorio:document.getElementById("laboratorio").value.trim(),piano:document.getElementById("piano").value.trim(),stanza:document.getElementById("stanza").value.trim(),stato:document.getElementById("stato").value,responsabile:document.getElementById("responsabile").value.trim(),cadenza_man:document.getElementById("cadenzaMan").value.trim(),tipo_attivita:getTipo(),ha_sistema_filtrante:document.getElementById("haSistemaFiltrante").value,stadi_filtranti:stadiLabel,accessori:document.getElementById("accessori").value.trim(),note:document.getElementById("note").value.trim(),filtri_stadi:filtri,foto_url:foto.url||null,foto_path:foto.path||null};
+  var isUpdate=!!id;
+  var prev=isUpdate?equipment.find(function(x){return x.id===id;}):null;
+  var changes=isUpdate?buildFieldDiff(prev,row,filtri):[];
+  if(!isUpdate){
+    changes=["NUOVO DPC","Cliente: "+clienteName(cliente_id),"Acronimo: "+acronimo,"Matricola: "+matricola,"ID: "+idDispositivo,"Sede: "+sede,"Stato: "+row.stato,"Stadi: "+(row.stadi_filtranti||"-")];
+    var fs=row.filtri_stadi||{};
+    Object.keys(fs).forEach(function(k){var s=fs[k];changes.push("S"+k+": "+(s.codice||"-")+" | prox "+(s.prox||"-")+" | "+(s.status||"-"));});
+  }
+  pendingSavePayload={row:row,filtri:filtri,id:id,isUpdate:isUpdate,acronimo:acronimo,matricola:matricola,idDispositivo:idDispositivo,sede:sede,cliente_id:cliente_id};
+  document.getElementById("confirmSaveIntro").textContent=isUpdate?("Modifica: "+acronimo+" · "+matricola):("Nuovo DPC");
+  document.getElementById("confirmSaveList").textContent=changes.length?changes.join("\n"):"Nessuna differenza sui campi principali. Confermi comunque?";
+  document.getElementById("confirmSaveModal").classList.add("show");
+}
+
+function closeConfirmSave(){document.getElementById("confirmSaveModal").classList.remove("show");pendingSavePayload=null;}
+
+async function finishSaveEquipment(){
+  if(!pendingSavePayload)return;
+  var p=pendingSavePayload;
+  var row=p.row,filtri=p.filtri,id=p.id,isUpdate=p.isUpdate,acronimo=p.acronimo,matricola=p.matricola,idDispositivo=p.idDispositivo,sede=p.sede;
+  closeConfirmSave();
+  var res;
+  if(isUpdate)res=await sb.from("equipment").update(row).eq("id",id);
+  else{res=await sb.from("equipment").insert([row]).select();if(!res.error&&res.data&&res.data[0])id=res.data[0].id;}
+  if(res.error){alert(res.error.message);return;}
+  var det=acronimo+" - "+sede;
+  if(isUpdate){var prev=equipment.find(function(x){return x.id===id;});if(prev){var ch=diffFiltriStadi(prev.filtriStadi,filtri);if(ch.length)det+=" | Filtri: "+ch.join("; ");}}
+  await logAudit(isUpdate?"UPDATE":"CREATE",{id:id,matricola:matricola,idDispositivo:idDispositivo},det);
+  toast("Salvato");
+  closeModal();
+  await loadAll();
+}
+
+async function deleteEquipment(id){var e=equipment.find(function(x){return x.id===id;});if(!e||!canEditAnagrafica(e.clienteId)||!confirm("Eliminare?"))return;var res=await sb.from("equipment").delete().eq("id",id);if(res.error){alert(res.error.message);return;}await logAudit("DELETE",e,"Eliminato");toast("Eliminato");await loadAll();}
+
+function openClientiModal(){if(!isSuper())return;resetClienteForm();renderClienti();document.getElementById("clientiModal").classList.add("show");}
+function closeClientiModal(){document.getElementById("clientiModal").classList.remove("show");}
+function resetClienteForm(){document.getElementById("editClienteId").value="";document.getElementById("cliNome").value="";document.getElementById("cliCodice").value="";document.getElementById("cliCitta").value="";document.getElementById("cliNote").value="";}
+function countDpc(cid){return equipment.filter(function(e){return e.clienteId===cid;}).length;}
+function renderClienti(){var html="";clienti.forEach(function(c){html+="<tr><td>"+c.nome+"</td><td>"+(c.codice||"-")+"</td><td>"+(c.citta||"-")+"</td><td>"+countDpc(c.id)+'</td><td><button class="btn-icon edit" onclick="editCliente(\''+c.id+'\')"><i class="fas fa-pen"></i></button> <button class="btn-icon delete" onclick="deleteCliente(\''+c.id+'\')"><i class="fas fa-trash"></i></button></td></tr>';});document.getElementById("clientiTableBody").innerHTML=html;}
+function editCliente(id){var c=clienti.find(function(x){return x.id===id;});if(!c)return;document.getElementById("editClienteId").value=c.id;document.getElementById("cliNome").value=c.nome||"";document.getElementById("cliCodice").value=c.codice||"";document.getElementById("cliCitta").value=c.citta||"";document.getElementById("cliNote").value=c.note||"";}
+async function saveCliente(){if(!isSuper())return;var nome=reqNA(document.getElementById("cliNome").value),codice=reqNA(document.getElementById("cliCodice").value),citta=reqNA(document.getElementById("cliCitta").value),note=reqNA(document.getElementById("cliNote").value);if(!nome||!codice||!citta||!note){alert("Tutti obbligatori. Usa N.A. se manca un dato.");return;}var id=document.getElementById("editClienteId").value,row={nome:nome,codice:codice,citta:citta,note:note};var res=id?await sb.from("clienti").update(row).eq("id",id):await sb.from("clienti").insert([row]);if(res.error){alert(res.error.message);return;}toast("Cliente salvato");resetClienteForm();await loadAll();renderClienti();}
+async function deleteCliente(id){if(!isSuper())return;var c=clienti.find(function(x){return x.id===id;}),n=countDpc(id),nome=c?c.nome:"questo cliente";var msg=n>0?("ATTENZIONE\n\nIl cliente \""+nome+"\" ha "+n+" DPC collegati.\nEliminando il cliente verranno eliminati anche tutti i suoi DPC.\n\nVuoi procedere comunque?"):("Eliminare il cliente \""+nome+"\"?");if(!confirm(msg))return;if(n>0&&!confirm("Confermi l'eliminazione di "+n+" DPC del cliente \""+nome+"\"?"))return;if(n>0){var delEq=await sb.from("equipment").delete().eq("cliente_id",id);if(delEq.error){alert("Errore eliminazione DPC:\n"+delEq.error.message);return;}}await sb.from("users").update({cliente_id:null}).eq("cliente_id",id);var res=await sb.from("clienti").delete().eq("id",id);if(res.error){alert(res.error.message);return;}try{await logAudit("DELETE",null,"Cliente eliminato: "+nome+(n?" - "+n+" DPC":""));}catch(e){}toast("Cliente eliminato"+(n?" ("+n+" DPC)":""));await loadAll();renderClienti();}
+function openUsersModal(){if(!isSuper())return;resetUserForm();fillFilters();renderUsers();document.getElementById("usersModal").classList.add("show");}
+function closeUsersModal(){document.getElementById("usersModal").classList.remove("show");}
+function resetUserForm(){document.getElementById("editUserId").value="";document.getElementById("userUsername").value="";document.getElementById("userNome").value="";document.getElementById("userPassword").value="";document.getElementById("userRole").value="viewer";document.getElementById("userClienteId").value="";toggleUserClienteField();}
+function toggleUserClienteField(){var r=document.getElementById("userRole").value;document.getElementById("wrapUserCliente").style.display=(r==="superadmin"||r==="viewer")?"none":"block";}
+function renderUsers(){var html="";users.forEach(function(u){html+="<tr><td>"+u.username+"</td><td>"+(u.nome||"-")+"</td><td>"+u.role+"</td><td>"+clienteName(u.cliente_id)+'</td><td><button class="btn-icon edit" onclick="editUser(\''+u.id+'\')"><i class="fas fa-pen"></i></button> '+(u.username!=="admin"?'<button class="btn-icon delete" onclick="deleteUser(\''+u.id+'\')"><i class="fas fa-trash"></i></button>':"")+"</td></tr>";});document.getElementById("usersTableBody").innerHTML=html;}
+function editUser(id){var u=users.find(function(x){return x.id===id;});if(!u)return;document.getElementById("editUserId").value=u.id;document.getElementById("userUsername").value=u.username;document.getElementById("userNome").value=u.nome||"";document.getElementById("userPassword").value="";document.getElementById("userRole").value=u.role;document.getElementById("userClienteId").value=u.cliente_id||"";toggleUserClienteField();}
+async function saveUser(){if(!isSuper())return;var id=document.getElementById("editUserId").value,username=document.getElementById("userUsername").value.trim(),password=document.getElementById("userPassword").value,role=document.getElementById("userRole").value,cliente_id=document.getElementById("userClienteId").value||null;if(!username){alert("Username obbligatorio");return;}if(!id&&(!password||password.length<4)){alert("Password min 4");return;}if((role==="admin"||role==="tecnico")&&!cliente_id){alert("Assegna un cliente");return;}if(role==="superadmin")cliente_id=null;var row={username:username,nome:document.getElementById("userNome").value.trim(),role:role,cliente_id:cliente_id};if(password)row.password=password;var res=id?await sb.from("users").update(row).eq("id",id):await sb.from("users").insert([Object.assign({password:password},row)]);if(res.error){alert(res.error.message);return;}toast("Utente salvato");resetUserForm();await loadAll();renderUsers();}
+async function deleteUser(id){if(!isSuper()||!confirm("Eliminare?"))return;if(currentUser&&currentUser.id===id){alert("Non puoi eliminare te stesso");return;}await sb.from("users").delete().eq("id",id);toast("Eliminato");await loadAll();renderUsers();}
+function openHistory(id){var e=equipment.find(function(x){return x.id===id;});if(!e)return;currentHistoryEquipId=id;currentCanEdit=canEditInterventi(e.clienteId);document.getElementById("historyDeviceInfo").innerHTML=clienteName(e.clienteId)+" - "+(e.acronimo||"")+" - "+(e.matricola||"");document.getElementById("manData").value=new Date().toISOString().slice(0,10);document.getElementById("manTecnico").value=currentUser.nome||"";document.getElementById("manTipo").value="";document.getElementById("manFile").value="";document.getElementById("manAllegato").value="";document.getElementById("manNote").value="";document.getElementById("historyAddSection").style.display=currentCanEdit?"block":"none";document.getElementById("historyModal").classList.add("show");loadHistory();}
+function closeHistoryModal(){document.getElementById("historyModal").classList.remove("show");}
+async function loadHistory(){var res=await sb.from("manutenzioni").select("*").eq("equip_id",currentHistoryEquipId).order("data",{ascending:false});if(res.error){alert(res.error.message);return;}var list=res.data||[],empty=document.getElementById("historyEmpty"),table=document.getElementById("historyTable"),tb=document.getElementById("historyTableBody");if(!list.length){empty.style.display="block";table.style.display="none";return;}empty.style.display="none";table.style.display="table";var html="";list.forEach(function(m){var al=m.allegato_url?'<a href="'+m.allegato_url+'" target="_blank">Apri</a>':"-";html+="<tr><td>"+fmt(m.data)+"</td><td>"+(m.tecnico||"-")+"</td><td>"+(m.tipo_intervento||"-")+"</td><td>"+(m.note||"-")+"</td><td>"+al+"</td></tr>";});tb.innerHTML=html;}
+async function saveManutenzione(){if(!currentCanEdit)return;var data=document.getElementById("manData").value,tecnico=document.getElementById("manTecnico").value.trim(),tipo=document.getElementById("manTipo").value;if(!data||!tecnico||!tipo){alert("Compila i campi");return;}var file=document.getElementById("manFile").files[0],link=document.getElementById("manAllegato").value.trim(),btn=document.getElementById("btnSaveMan");btn.disabled=true;try{var url=link,path="";if(file){path=currentHistoryEquipId+"/"+Date.now()+"_"+safeName(file.name);var up=await sb.storage.from("manutenzioni").upload(path,file);if(up.error){alert(storageErrorMsg(up.error,"manutenzioni"));throw up.error;}url=sb.storage.from("manutenzioni").getPublicUrl(path).data.publicUrl;}var res=await sb.from("manutenzioni").insert([{equip_id:currentHistoryEquipId,data:data,tecnico:tecnico,tipo_intervento:tipo,note:document.getElementById("manNote").value.trim(),allegato_url:url||"",storage_path:path,creato_da:currentUser.username}]);if(res.error)throw res.error;if(document.getElementById("manAggiornaUltime").checked)await sb.from("equipment").update({ultima_man:data}).eq("id",currentHistoryEquipId);var eq=equipment.find(function(x){return x.id===currentHistoryEquipId;});await logAudit("UPDATE",eq,"Manutenzione: "+tipo);toast("Salvato");await loadHistory();await loadAll();}catch(e){alert(e.message||e);}btn.disabled=false;}
+function openReport(id){var e=equipment.find(function(x){return x.id===id;});if(!e)return;currentReportEquipId=id;currentCanEdit=canEditInterventi(e.clienteId);document.getElementById("reportDeviceInfo").innerHTML=clienteName(e.clienteId)+" - "+(e.acronimo||"")+" - "+(e.matricola||"");document.getElementById("repNumero").value="";document.getElementById("repData").value="";document.getElementById("repEsito").value="";document.getElementById("repEnte").value="CAMI";document.getElementById("repFile").value="";document.getElementById("repLink").value="";document.getElementById("repNote").value="";document.getElementById("reportAddSection").style.display=currentCanEdit?"block":"none";document.getElementById("reportModal").classList.add("show");loadReports();}
+function closeReportModal(){document.getElementById("reportModal").classList.remove("show");}
+async function loadReports(){var res=await sb.from("report").select("*").eq("equip_id",currentReportEquipId).order("data_verifica",{ascending:false});if(res.error){alert(res.error.message);return;}var list=res.data||[],empty=document.getElementById("reportEmpty"),table=document.getElementById("reportTable"),tb=document.getElementById("reportTableBody");if(!list.length){empty.style.display="block";table.style.display="none";return;}empty.style.display="none";table.style.display="table";var html="";list.forEach(function(r){var pdf=r.link_pdf?'<a href="'+r.link_pdf+'" target="_blank">PDF</a>':"-";html+="<tr><td>"+(r.numero_report||"-")+"</td><td>"+fmt(r.data_verifica)+"</td><td>"+(r.esito||"-")+"</td><td>"+(r.ente_verificatore||"-")+"</td><td>"+pdf+"</td></tr>";});tb.innerHTML=html;}
+async function saveReport(){if(!currentCanEdit)return;var numero=document.getElementById("repNumero").value.trim(),data=document.getElementById("repData").value,esito=document.getElementById("repEsito").value,ente=document.getElementById("repEnte").value.trim();if(!numero||!data||!esito||!ente){alert("Compila i campi");return;}var file=document.getElementById("repFile").files[0],link=document.getElementById("repLink").value.trim();if(!file&&!link){alert("PDF o link");return;}var btn=document.getElementById("btnSaveRep");btn.disabled=true;try{var url=link,path="";if(file){path=currentReportEquipId+"/"+Date.now()+"_"+safeName(file.name);var up=await sb.storage.from("report").upload(path,file);if(up.error){alert(storageErrorMsg(up.error,"report"));throw up.error;}url=sb.storage.from("report").getPublicUrl(path).data.publicUrl;}var res=await sb.from("report").insert([{equip_id:currentReportEquipId,numero_report:numero,data_verifica:data,esito:esito,ente_verificatore:ente,link_pdf:url||"",storage_path:path,note:document.getElementById("repNote").value.trim(),creato_da:currentUser.username}]);if(res.error)throw res.error;await sb.from("equipment").update({ultima_man:data}).eq("id",currentReportEquipId);var eq=equipment.find(function(x){return x.id===currentReportEquipId;});await logAudit("UPDATE",eq,"Report "+numero);toast("Report salvato");await loadReports();await loadAll();}catch(e){alert(e.message||e);}btn.disabled=false;}
+async function openAuditModal(){document.getElementById("auditModal").classList.add("show");var res=await sb.from("audit_log").select("*").order("created_at",{ascending:false}).limit(200);if(res.error){alert(res.error.message+"\n\nEsegui lo SQL per creare audit_log");return;}var list=res.data||[],empty=document.getElementById("auditEmpty"),table=document.getElementById("auditTable"),tb=document.getElementById("auditTableBody");if(!list.length){empty.style.display="block";table.style.display="none";return;}empty.style.display="none";table.style.display="table";var html="";list.forEach(function(a){var dt=a.created_at?new Date(a.created_at).toLocaleString("it-IT"):"-";html+="<tr><td>"+dt+"</td><td>"+(a.username||"-")+"</td><td>"+(a.azione||"-")+"</td><td>"+(a.matricola||"-")+"</td><td>"+(a.id_dispositivo||"-")+"</td><td>"+(a.dettagli||"-")+"</td></tr>";});tb.innerHTML=html;}
+function closeAuditModal(){document.getElementById("auditModal").classList.remove("show");}
+function buildExpiryMessage(){var a=[],b=[];visibleEquipment().forEach(function(e){var base=clienteName(e.clienteId)+" "+(e.acronimo||"")+" "+(e.matricola||"");if(isOverdue(e.prossimaMan))a.push("- "+base+" [MAN "+fmt(e.prossimaMan)+"]");else if(isSoon(e.prossimaMan))b.push("- "+base+" [MAN "+fmt(e.prossimaMan)+"]");stageProxList(e).forEach(function(x){var line="- "+base+" [FILTRO S"+x.stadio+" "+fmt(x.prox)+"]";if(x.status==="overdue")a.push(line);else if(x.status==="soon")b.push(line);});});if(!a.length&&!b.length)return null;var m="Scadenze DPC\n\n";if(a.length)m+="SCADUTI\n"+a.join("\n")+"\n\n";if(b.length)m+="IN SCADENZA\n"+b.join("\n");return m;}
+function sendExpiryEmail(manual){if(typeof emailjs==="undefined"){if(manual)alert("EmailJS non caricato");return;}var message=buildExpiryMessage();if(!message){if(manual)toast("Nessuna scadenza");return;}if(!manual){var t=new Date().toISOString().slice(0,10);if(localStorage.getItem(LAST_EMAIL_KEY)===t)return;}emailjs.send(EMAILJS_SERVICE_ID,EMAILJS_TEMPLATE_ID,{to_name:"Responsabile",from_name:"Gestionale CAMI",subject:"Scadenze DPC",message:message}).then(function(){localStorage.setItem(LAST_EMAIL_KEY,new Date().toISOString().slice(0,10));toast("Email inviata");}).catch(function(e){if(manual)alert(e.message||e);});}
+function exportData(){var blob=new Blob([JSON.stringify(equipment,null,2)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="dpc.json";a.click();}
+function exportExcel(markBackup){var rows=[["Cliente","Acronimo","Costruttore","Modello","Matricola","ID","Ultima","Prossima","Prox filtro","Sede","Edificio","Lab","Piano","Stanza","Stato","Referente","Cadenza","Attivita","Filtro","Stadi","Accessori","Note"]];for(var i=1;i<=4;i++)rows[0].push("S"+i+" Codice","S"+i+" Misure","S"+i+" Tipo","S"+i+" Qty","S"+i+" Data","S"+i+" Prox","S"+i+" Status");equipment.forEach(function(e){var nf=nextFilterProx(e);var r=[clienteName(e.clienteId),e.acronimo,e.costruttore,e.modello,e.matricola,e.idDispositivo,e.ultimaMan,e.prossimaMan,nf?("S"+nf.stadio+" "+nf.prox):"",e.sede,e.edificio,e.laboratorio,e.piano,e.stanza,e.stato,e.responsabile,e.cadenzaMan,(e.tipoAttivita||[]).join(", "),e.haSistemaFiltrante,e.stadiFiltranti,e.accessori,e.note];for(var i=1;i<=4;i++){var s=(e.filtriStadi&&e.filtriStadi[String(i)])?e.filtriStadi[String(i)]:emptyStage();r.push(s.codice,s.misure,s.tipologia,s.qty,s.data_install,s.prox,s.status);}rows.push(r);});var ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"DPC");XLSX.writeFile(wb,"dpc_backup_"+new Date().toISOString().slice(0,10)+".xlsx");if(markBackup){try{localStorage.setItem(LAST_BACKUP_KEY,String(Date.now()));}catch(e){}toast("Backup Excel salvato");}}
+async function importData(ev){if(!isSuper())return;var file=ev.target.files[0];if(!file)return;var reader=new FileReader();reader.onload=async function(e){try{var data=JSON.parse(e.target.result);if(!Array.isArray(data))throw new Error("JSON non valido");if(!confirm("Importare "+data.length+"?"))return;for(var i=0;i<data.length;i++){var x=data[i];await sb.from("equipment").insert([{cliente_id:x.clienteId||(clienti[0]?clienti[0].id:null),acronimo:x.acronimo||"",costruttore:x.costruttore||"",modello:x.modello||"",matricola:x.matricola||"",id_dispositivo:x.idDispositivo||"",ultima_man:x.ultimaMan||null,prossima_man:x.prossimaMan||null,sede:x.sede||"",edificio:x.edificio||"",laboratorio:x.laboratorio||"",piano:x.piano||"",stanza:x.stanza||"",stato:x.stato||"OPERATIVA",responsabile:x.responsabile||"",cadenza_man:x.cadenzaMan||"",tipo_attivita:x.tipoAttivita||[],ha_sistema_filtrante:x.haSistemaFiltrante||"no",stadi_filtranti:x.stadiFiltranti||"",accessori:x.accessori||"",note:x.note||"",filtri_stadi:x.filtriStadi||{}}]);}await logAudit("IMPORT",null,"Import JSON "+data.length);toast("Import OK");await loadAll();}catch(err){alert(err.message);}};reader.readAsText(file);ev.target.value="";}
+function normalizeHeader(s){return String(s||"").toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ");}
+function findCol(h,names){for(var i=0;i<h.length;i++){var x=normalizeHeader(h[i]);if(!x)continue;for(var j=0;j<names.length;j++){if(x===names[j]||x.indexOf(names[j])>-1)return i;}}return -1;}
+function cell(row,idx){if(idx<0||!row||idx>=row.length)return"";var v=row[idx];if(v==null)return"";return String(v).trim();}
+function detectHeaderRow(rows,maxScan){var bestIdx=-1,bestScore=0,limit=Math.min(rows.length,maxScan||40);for(var r=0;r<limit;r++){var row=rows[r];if(!row||!row.length)continue;var joined=row.map(normalizeHeader).join(" | "),score=0;if(joined.indexOf("matricola")>-1)score+=5;if(joined.indexOf("identificativo")>-1)score+=5;if(joined.indexOf("acronimo")>-1)score+=3;if(joined.indexOf("costruttore")>-1)score+=2;if(joined.indexOf("elenco apparecchiature")>-1)score=0;if(joined.indexOf("campo ad uso esclusivo")>-1)score=0;if(score>bestScore){bestScore=score;bestIdx=r;}}return bestScore>=5?bestIdx:-1;}
+function mapStato(raw){var s=normalizeHeader(raw);if(!s)return"OPERATIVA";if(s.indexOf("operativ")>-1)return"OPERATIVA";if(s.indexOf("produzione")>-1)return"IN PRODUZIONE";if(s.indexOf("manutenzione")>-1)return"MANUTENZIONE";if(s.indexOf("installare")>-1)return"DA INSTALLARE";if(s.indexOf("disuso")>-1)return"IN DISUSO";if(s.indexOf("dismess")>-1)return"DISMESSA";if(s.indexOf("competenza")>-1)return"NON DI COMPETENZA CAMI";var up=String(raw||"").trim().toUpperCase();return STATI_DPC.indexOf(up)>-1?up:(up||"OPERATIVA");}
+function mapFiltro(raw){var s=normalizeHeader(raw);if(!s)return"no";if(s==="si"||s==="s?"||s==="yes"||s==="1"||s.indexOf("si")===0)return"si";return"no";}
+function toggleImportClienteMode(){var mode=document.querySelector('input[name="importClienteMode"]:checked').value;document.getElementById("importExistingWrap").style.display=mode==="existing"?"block":"none";document.getElementById("importNewWrap").style.display=mode==="new"?"block":"none";}
+function fillImportClienteSelect(){var sel=document.getElementById("importClienteId");sel.innerHTML='<option value="">- Seleziona -</option>';clienti.forEach(function(c){sel.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});}
+function closeImportClienteModal(){document.getElementById("importClienteModal").classList.remove("show");pendingExcelFile=null;}
+async function importExcel(ev){if(!isSuper()){alert("Solo superadmin");ev.target.value="";return;}var file=ev.target.files[0];if(!file)return;if(typeof XLSX==="undefined"){alert("Libreria Excel non caricata");ev.target.value="";return;}pendingExcelFile=file;fillImportClienteSelect();var radios=document.querySelectorAll('input[name="importClienteMode"]');if(radios[0])radios[0].checked=true;["importNewNome","importNewCodice","importNewCitta","importNewNote"].forEach(function(id){document.getElementById(id).value="";});toggleImportClienteMode();document.getElementById("importClienteModal").classList.add("show");ev.target.value="";}
+async function confirmImportCliente(){if(!pendingExcelFile)return;var mode=document.querySelector('input[name="importClienteMode"]:checked').value,clienteId=null;if(mode==="existing"){clienteId=document.getElementById("importClienteId").value;if(!clienteId){alert("Seleziona un cliente");return;}}else{var nome=reqNA(document.getElementById("importNewNome").value),codice=reqNA(document.getElementById("importNewCodice").value),citta=reqNA(document.getElementById("importNewCitta").value),note=reqNA(document.getElementById("importNewNote").value);if(!nome||!codice||!citta||!note){alert("Tutti obbligatori (o N.A.)");return;}var res=await sb.from("clienti").insert([{nome:nome,codice:codice,citta:citta,note:note}]).select();if(res.error){alert(res.error.message);return;}clienteId=res.data[0].id;toast("Cliente creato");await loadAll();}var file=pendingExcelFile;document.getElementById("importClienteModal").classList.remove("show");pendingExcelFile=null;await runExcelImport(file,clienteId);}
+async function runExcelImport(file,clienteId){var reader=new FileReader();reader.onload=async function(e){try{var wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});var rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:"",raw:false});if(!rows||rows.length<2){alert("File vuoto");return;}var headerIdx=detectHeaderRow(rows,40);if(headerIdx<0){alert("Intestazione non trovata");return;}var h=rows[headerIdx];var cAcr=findCol(h,["acronimo dpc","acronimo"]),cCost=findCol(h,["costruttore"]),cMod=findCol(h,["modello"]),cMat=findCol(h,["matricola"]),cId=findCol(h,["identificativo","id dispositivo"]),cSede=findCol(h,["sede"]),cEd=findCol(h,["edificio"]),cLab=findCol(h,["laboratorio"]),cPiano=findCol(h,["piano"]),cStanza=findCol(h,["stanza"]),cStato=findCol(h,["stato"]),cRef=findCol(h,["referente","responsabile"]),cCad=findCol(h,["cadenza"]),cFiltro=findCol(h,["sistema filtrante","filtrante"]),cAcc=findCol(h,["accessori"]),cAtt=findCol(h,["attivita","attivita"]);
+      var stageCols={};
+      for(var si=1;si<=4;si++){
+        stageCols[si]={
+          codice:findCol(h,[si+" stadio codice","stadio "+si+" codice",si+"o stadio codice",si+"° stadio codice","s"+si+" codice","codice filtro "+si,"codice "+si+" stadio",si+" stadio"]),
+          misure:findCol(h,[si+" stadio misure","s"+si+" misure","misure "+si,"misure filtro "+si,si+"o stadio misure",si+"° stadio misure"]),
+          tipologia:findCol(h,[si+" stadio tipologia","s"+si+" tipologia","tipologia "+si,"tipo filtro "+si,si+"o stadio tipologia",si+"° stadio tipologia","tipologia p/m "+si]),
+          qty:findCol(h,[si+" stadio q","s"+si+" qty","quantita "+si,"q.ta "+si,"qta "+si,si+"o stadio quantita"]),
+          correlazione:findCol(h,[si+" stadio correlazione","s"+si+" correlazione","correlazione "+si]),
+          data:findCol(h,[si+" stadio data","s"+si+" data","data install "+si,"data installazione "+si,"data install. "+si,si+"o stadio data",si+"° stadio data install"]),
+          durata:findCol(h,[si+" stadio durata","s"+si+" durata","durata "+si,"durata mesi "+si,si+"o stadio durata"]),
+          prox:findCol(h,[si+" stadio prox","s"+si+" prox","prox "+si,"prossima sostituzione "+si,"prox. sostituz "+si,si+"o stadio prox",si+"° stadio prox"])
+        };
+      }if(cMat<0&&cId<0){alert("Serve MATRICOLA o IDENTIFICATIVO");return;}var ok=0,skip=0,errors=[];if(!confirm("Cliente: "+clienteName(clienteId)+"\nRiga: "+(headerIdx+1)+"\nProcedere?"))return;for(var r=headerIdx+1;r<rows.length;r++){var row=rows[r];if(!row||!row.length){skip++;continue;}var mat=cell(row,cMat),idd=cell(row,cId);if(!mat&&!idd){skip++;continue;}if(!mat)mat="MAT-"+(r+1);if(!idd)idd="ID-"+(r+1);
+      var sedeImp=(cell(row,cSede)||"N.A.").trim();
+      var sedeImpKey=sedeImp.toLowerCase();
+      var already=equipment.find(function(x){return x.clienteId===clienteId&&String(x.sede||"").trim().toLowerCase()===sedeImpKey&&(String(x.matricola||"").toLowerCase()===mat.toLowerCase()||String(x.idDispositivo||"").toLowerCase()===idd.toLowerCase());});
+      if(already){skip++;errors.push("Riga "+(r+1)+": duplicato "+mat+" / "+idd+" (stessa sede "+sedeImp+")");continue;}var attRaw=cell(row,cAtt),tipoAtt=[];if(attRaw){["MA","CS","CF","FF"].forEach(function(t){if(attRaw.toUpperCase().indexOf(t)>-1)tipoAtt.push(t);});}var insertRow={cliente_id:clienteId,acronimo:(cell(row,cAcr)||"").toUpperCase(),costruttore:cell(row,cCost),modello:cell(row,cMod),matricola:mat,id_dispositivo:idd,sede:cell(row,cSede)||"N.A.",edificio:cell(row,cEd),laboratorio:cell(row,cLab),piano:cell(row,cPiano),stanza:cell(row,cStanza),stato:mapStato(cell(row,cStato)),responsabile:cell(row,cRef),cadenza_man:cell(row,cCad),tipo_attivita:tipoAtt,ha_sistema_filtrante:mapFiltro(cell(row,cFiltro)),accessori:cell(row,cAcc),note:"Import Excel riga "+(r+1),filtri_stadi:(function(){var fs={};var maxS=0;for(var si=1;si<=4;si++){var sc=stageCols[si];var st={codice:cell(row,sc.codice),misure:cell(row,sc.misure),tipologia:cell(row,sc.tipologia),qty:cell(row,sc.qty),correlazione:cell(row,sc.correlazione),data_install:cell(row,sc.data),durata_mesi:cell(row,sc.durata),prox:cell(row,sc.prox),status:""};if(!st.prox)st.prox=calcProx(st.data_install,st.durata_mesi);st.status=autoFilterStatus(st.prox);if(st.codice||st.misure||st.tipologia||st.data_install||st.prox){fs[String(si)]=st;maxS=si;}}return fs;})(),stadi_filtranti:(function(){var maxS=0;for(var si=1;si<=4;si++){var sc=stageCols[si];if(cell(row,sc.codice)||cell(row,sc.data)||cell(row,sc.prox))maxS=si;}return maxS?maxS+" Stadio":"";})(),ultima_man:null,prossima_man:null};var res=await sb.from("equipment").insert([insertRow]);if(res.error)errors.push("Riga "+(r+1)+": "+res.error.message);else ok++;}await logAudit("IMPORT",null,"Import Excel -> "+clienteName(clienteId)+" - "+ok+" DPC");alert("Import: "+ok+" inseriti, "+skip+" saltati"+(errors.length?"\n"+errors.slice(0,8).join("\n"):""));toast("Import: "+ok);await loadAll();}catch(err){alert(err.message||err);}};reader.readAsArrayBuffer(file);}
+
+function openOggiModal(){
+  document.getElementById("oggiModal").classList.add("show");
+  var items=[];
+  visibleEquipment().forEach(function(e){
+    if(isOverdue(e.prossimaMan)||isSoon(e.prossimaMan)){
+      items.push({type:"man",status:expStatus(e.prossimaMan),date:e.prossimaMan,e:e,label:"Manutenzione"});
+    }
+    stageProxList(e).forEach(function(x){
+      if(x.status==="overdue"||x.status==="soon"){
+        items.push({type:"fil",status:x.status,date:x.prox,e:e,label:"Filtro S"+x.stadio+(x.codice?" ("+x.codice+")":""),stadio:x.stadio});
+      }
+    });
+  });
+  items.sort(function(a,b){
+    var oa={overdue:0,soon:1};if(oa[a.status]!==oa[b.status])return oa[a.status]-oa[b.status];
+    return String(a.date).localeCompare(String(b.date));
+  });
+  var empty=document.getElementById("oggiEmpty"),list=document.getElementById("oggiList");
+  if(!items.length){empty.style.display="block";list.innerHTML="";return;}
+  empty.style.display="none";
+  var html="";
+  items.forEach(function(it){
+    var cls=it.status==="overdue"?"overdue":"soon";
+    var days=daysUntil(it.date);
+    var dtxt=it.status==="overdue"?("scaduto da "+Math.abs(days)+"g"):("tra "+days+"g");
+    html+='<div class="oggi-item '+cls+'"><div><span class="oggi-tag '+(it.type==="man"?"man":"fil")+'">'+(it.type==="man"?"MAN":"FILTRO")+'</span> <strong>'+clienteName(it.e.clienteId)+'</strong> · '+(it.e.acronimo||"")+' · '+(it.e.matricola||"")+'<div class="oggi-meta">'+it.label+' · '+fmt(it.date)+' · '+dtxt+(it.e.sede?" · "+it.e.sede:"")+'</div></div><div><button class="btn btn-primary" style="padding:.3rem .55rem" onclick="closeOggiModal();openFromOggi(\''+it.e.id+'\')">Apri</button></div></div>';
+  });
+  list.innerHTML=html;
+}
+
+function checkSoftBlock(e){
+  var el=document.getElementById("softBlockAlert");
+  if(!el)return;
+  if(!e){el.style.display="none";return;}
+  var msgs=[];
+  if(isOverdue(e.prossimaMan))msgs.push("Manutenzione scaduta il "+fmt(e.prossimaMan));
+  stageProxList(e).forEach(function(x){
+    if(expStatusSimple(x.prox)==="overdue")msgs.push("Filtro stadio "+x.stadio+(x.codice?" ("+x.codice+")":"")+" SCADUTO il "+fmt(x.prox));
+  });
+  if(msgs.length){el.style.display="block";el.innerHTML="ATTENZIONE - non in regola:<br>"+msgs.join("<br>");}
+  else el.style.display="none";
+}
+
+
+function closeOggiModal(){document.getElementById("oggiModal").classList.remove("show");}
+function openFromOggi(id){var e=equipment.find(function(x){return x.id===id;});if(!e)return;if(canEditAnagrafica(e.clienteId))editEquipment(id);else openPrintScheda(id);}
+
+function openExportModal(){
+  var sc=document.getElementById("expCliente");sc.innerHTML='<option value="">Tutti</option>';
+  clienti.forEach(function(c){sc.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});
+  if(!isSuper()&&currentUser.clienteId){sc.value=currentUser.clienteId;sc.disabled=true;}else sc.disabled=false;
+  var sa=document.getElementById("expAcronimo");sa.innerHTML='<option value="">Tutti</option>';
+  var ac={};visibleEquipment().forEach(function(e){if(e.acronimo)ac[e.acronimo]=1;});
+  Object.keys(ac).sort().forEach(function(a){sa.innerHTML+='<option>'+a+'</option>';});
+  document.getElementById("exportModal").classList.add("show");
+}
+function closeExportModal(){document.getElementById("exportModal").classList.remove("show");}
+function doExportCustom(){
+  var fcl=document.getElementById("expCliente").value,fst=document.getElementById("expStato").value,fsc=document.getElementById("expScadenza").value,fac=document.getElementById("expAcronimo").value;
+  var list=visibleEquipment().filter(function(e){
+    var dest=deviceExpiryStatus(e),msc=true;
+    if(fsc==="scaduti")msc=dest==="overdue";else if(fsc==="in_scadenza")msc=dest==="soon";else if(fsc==="ok")msc=dest==="ok"||dest==="none";
+    return (!fcl||e.clienteId===fcl)&&(!fst||e.stato===fst)&&(!fac||e.acronimo===fac)&&msc;
+  });
+  if(!list.length){alert("Nessun DPC con questi filtri");return;}
+  var rows=[["Cliente","Codice cliente","Acronimo","Costruttore","Modello","Matricola","ID","Ultima","Prossima","Prox filtro","Status filtro","Sede","Edificio","Lab","Piano","Stanza","Stato","Referente","Cadenza","Attivita","Filtro","Stadi","Accessori","Note"]];
+  for(var i=1;i<=4;i++)rows[0].push("S"+i+" Codice","S"+i+" Misure","S"+i+" Tipo","S"+i+" Qty","S"+i+" Data","S"+i+" Prox","S"+i+" Status");
+  list.forEach(function(e){
+    var nf=nextFilterProx(e);
+    var stf=nf?autoFilterStatus(nf.prox):"";
+    var r=[clienteName(e.clienteId),clienteCode(e.clienteId),e.acronimo,e.costruttore,e.modello,e.matricola,e.idDispositivo,e.ultimaMan,e.prossimaMan,nf?("S"+nf.stadio+" "+nf.prox):"",stf,e.sede,e.edificio,e.laboratorio,e.piano,e.stanza,e.stato,e.responsabile,e.cadenzaMan,(e.tipoAttivita||[]).join(", "),e.haSistemaFiltrante,e.stadiFiltranti,e.accessori,e.note];
+    for(var i=1;i<=4;i++){var s=(e.filtriStadi&&e.filtriStadi[String(i)])?e.filtriStadi[String(i)]:emptyStage();r.push(s.codice,s.misure,s.tipologia,s.qty,s.data_install,s.prox,s.status||autoFilterStatus(s.prox));}
+    rows.push(r);
+  });
+  var ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"DPC");
+  XLSX.writeFile(wb,"dpc_filtrato_"+new Date().toISOString().slice(0,10)+".xlsx");
+  toast("Export: "+list.length+" DPC");
+  closeExportModal();
+}
+
+function openPrintScheda(id){
+  var e=equipment.find(function(x){return x.id===id;});if(!e)return;
+  var fs=e.filtriStadi||{},stadiHtml="";
+  for(var i=1;i<=4;i++){
+    var s=fs[String(i)];if(!s)continue;
+    stadiHtml+="<tr><td>"+i+"o</td><td>"+(s.codice||"-")+"</td><td>"+(s.misure||"-")+"</td><td>"+(s.tipologia||"-")+"</td><td>"+(s.data_install||"-")+"</td><td>"+(s.prox||"-")+"</td><td>"+statusFiltroBadge(autoFilterStatus(s.prox||calcProx(s.data_install,s.durata_mesi)))+"</td></tr>";
+  }
+  if(!stadiHtml)stadiHtml='<tr><td colspan="7">Nessun stadio</td></tr>';
+  var html='<div style="font-size:.9rem"><h3 style="margin-bottom:.5rem">Scheda DPC · '+(e.acronimo||"")+' · '+(e.matricola||"")+'</h3>'+
+    '<p><strong>Cliente:</strong> '+clienteName(e.clienteId)+' ('+clienteCode(e.clienteId)+') · <strong>ID:</strong> '+(e.idDispositivo||"-")+'</p>'+
+    '<p><strong>Costruttore/Modello:</strong> '+(e.costruttore||"-")+' / '+(e.modello||"-")+'</p>'+
+    '<p><strong>Ubicazione:</strong> '+(e.sede||"-")+' · '+(e.edificio||"-")+' · '+(e.laboratorio||"-")+' · P.'+(e.piano||"-")+' · St.'+(e.stanza||"-")+'</p>'+
+    '<p><strong>Stato:</strong> '+(e.stato||"-")+' · <strong>Referente:</strong> '+(e.responsabile||"-")+'</p>'+
+    '<p><strong>Ultima man.:</strong> '+fmt(e.ultimaMan)+' · <strong>Prossima:</strong> '+fmt(e.prossimaMan)+' · <strong>Cadenza:</strong> '+(e.cadenzaMan||"-")+'</p>'+
+    '<p><strong>Sistema filtrante:</strong> '+(e.haSistemaFiltrante||"no")+' · <strong>Stadi:</strong> '+(e.stadiFiltranti||"-")+' · <strong>Accessori:</strong> '+(e.accessori||"-")+'</p>'+
+    '<p><strong>Note:</strong> '+(e.note||"-")+'</p>'+
+    '<h4 style="margin:1rem 0 .4rem">Filtri a stadi</h4>'+
+    '<table class="history-table"><thead><tr><th>Stadio</th><th>Codice</th><th>Misure</th><th>Tipo</th><th>Install.</th><th>Prox</th><th>Status</th></tr></thead><tbody>'+stadiHtml+'</tbody></table>'+
+    (e.fotoUrl?'<p style="margin-top:1rem"><img src="'+e.fotoUrl+'" style="max-width:280px;border:1px solid #e2e8f0;border-radius:.4rem"></p>':'')+
+    '<p style="margin-top:1rem;font-size:.75rem;color:#64748b">Stampato da Gestionale CAMI · '+new Date().toLocaleString("it-IT")+'</p></div>';
+  document.getElementById("printContent").innerHTML=html;
+  document.getElementById("printModal").classList.add("show");
+}
+function closePrintModal(){document.getElementById("printModal").classList.remove("show");}
+
+function duplicaEquipment(id){
+  var e=equipment.find(function(x){return x.id===id;});
+  if(!e||!canEditAnagrafica(e.clienteId)){alert("Non autorizzato");return;}
+  openModal();
+  document.getElementById("modalTitle").textContent="Duplica DPC";
+  document.getElementById("clienteId").value=e.clienteId||"";
+  if(!isSuper())document.getElementById("clienteId").disabled=true;
+  document.getElementById("acronimo").value=e.acronimo;
+  document.getElementById("costruttore").value=e.costruttore;
+  document.getElementById("modello").value=e.modello;
+  document.getElementById("matricola").value="";
+  document.getElementById("idDispositivo").value="";
+  document.getElementById("ultimaMan").value="";
+  document.getElementById("prossimaMan").value=e.prossimaMan||"";
+  document.getElementById("sede").value=e.sede;
+  document.getElementById("edificio").value=e.edificio;
+  document.getElementById("laboratorio").value=e.laboratorio;
+  document.getElementById("piano").value=e.piano;
+  document.getElementById("stanza").value=e.stanza;
+  document.getElementById("stato").value=e.stato||"OPERATIVA";
+  document.getElementById("responsabile").value=e.responsabile;
+  document.getElementById("cadenzaMan").value=e.cadenzaMan;
+  document.getElementById("haSistemaFiltrante").value=e.haSistemaFiltrante||"no";
+  document.getElementById("stadiFiltranti").value=String(parseNumStadi(e.stadiFiltranti)||"");
+  document.getElementById("accessori").value=e.accessori;
+  document.getElementById("note").value=(e.note?e.note+" | ":"")+"Duplicato da "+(e.matricola||e.idDispositivo||"");
+  setTipo(e.tipoAttivita||[]);
+  fillFiltriStadi(e.filtriStadi||{});
+  document.getElementById("fotoUrl").value="";
+  document.getElementById("fotoPath").value="";
+  showFotoPreview("");
+  updateStadiVisibility();
+  toast("Compila Matricola e ID, poi Salva");
+}
+
+
+function buildFieldDiff(prev,row,filtri){
+  if(!prev)return [];
+  var changes=[],map={acronimo:"Acronimo",costruttore:"Costruttore",modello:"Modello",matricola:"Matricola",id_dispositivo:"ID",sede:"Sede",edificio:"Edificio",laboratorio:"Lab",piano:"Piano",stanza:"Stanza",stato:"Stato",responsabile:"Referente",cadenza_man:"Cadenza",ha_sistema_filtrante:"Filtro",stadi_filtranti:"N.Stadi",accessori:"Accessori",note:"Note",ultima_man:"Ultima man",prossima_man:"Prossima man"};
+  Object.keys(map).forEach(function(k){
+    var ov=prev[k.replace(/_([a-z])/g,function(m,a){return a.toUpperCase();})];
+    // map prev fields: camelCase in prev object
+  });
+  var pairs=[["acronimo",prev.acronimo,row.acronimo],["costruttore",prev.costruttore,row.costruttore],["modello",prev.modello,row.modello],["matricola",prev.matricola,row.matricola],["ID",prev.idDispositivo,row.id_dispositivo],["sede",prev.sede,row.sede],["edificio",prev.edificio,row.edificio],["laboratorio",prev.laboratorio,row.laboratorio],["piano",prev.piano,row.piano],["stanza",prev.stanza,row.stanza],["stato",prev.stato,row.stato],["referente",prev.responsabile,row.responsabile],["cadenza",prev.cadenzaMan,row.cadenza_man],["filtro",prev.haSistemaFiltrante,row.ha_sistema_filtrante],["stadi",prev.stadiFiltranti,row.stadi_filtranti],["accessori",prev.accessori,row.accessori],["note",prev.note,row.note],["ultima",prev.ultimaMan,row.ultima_man||""],["prossima",prev.prossimaMan,row.prossima_man||""],["attivita",(prev.tipoAttivita||[]).join(", "),(row.tipo_attivita||[]).join(", ")]];
+  pairs.forEach(function(p){if(String(p[1]||"")!==String(p[2]||""))changes.push(p[0]+": "+(p[1]||"-")+" -> "+(p[2]||"-"));});
+  var ch=diffFiltriStadi(prev.filtriStadi,filtri);ch.forEach(function(c){changes.push(c);});
+  return changes;
+}
+
+function diffFiltriStadi(oldFs,newFs){
+  oldFs=oldFs||{};newFs=newFs||{};
+  var changes=[];
+  for(var i=1;i<=4;i++){
+    var k=String(i),o=oldFs[k]||{},n=newFs[k]||{};
+    ["codice","prox","status","data_install","durata_mesi"].forEach(function(f){
+      var ov=o[f]||"",nv=n[f]||"";
+      if(String(ov)!==String(nv))changes.push("S"+i+"."+f+": "+(ov||"-")+" -> "+(nv||"-"));
+    });
+  }
+  return changes;
+}
+
+
+function buildNotifications(){
+  var items=[];
+  visibleEquipment().forEach(function(e){
+    if(isOverdue(e.prossimaMan))items.push({tier:"overdue",text:"MAN scaduta: "+(e.acronimo||"")+" "+(e.matricola||"")+" ("+fmt(e.prossimaMan)+")",id:e.id});
+    else if(isSoonTier(e.prossimaMan,DAYS_WARN_7))items.push({tier:"soon7",text:"MAN entro 7gg: "+(e.acronimo||"")+" "+(e.matricola||""),id:e.id});
+    else if(isSoonTier(e.prossimaMan,DAYS_WARN_15))items.push({tier:"soon15",text:"MAN entro 15gg: "+(e.acronimo||"")+" "+(e.matricola||""),id:e.id});
+    else if(isSoon(e.prossimaMan))items.push({tier:"soon30",text:"MAN entro 30gg: "+(e.acronimo||"")+" "+(e.matricola||""),id:e.id});
+    stageProxList(e).forEach(function(x){
+      var st=expStatusSimple(x.prox);
+      if(st==="overdue")items.push({tier:"overdue",text:"Filtro S"+x.stadio+" scaduto: "+(e.acronimo||"")+" "+(e.matricola||""),id:e.id});
+      else if(isSoonTier(x.prox,DAYS_WARN_7))items.push({tier:"soon7",text:"Filtro S"+x.stadio+" entro 7gg: "+(e.matricola||""),id:e.id});
+      else if(isSoonTier(x.prox,DAYS_WARN_15))items.push({tier:"soon15",text:"Filtro S"+x.stadio+" entro 15gg: "+(e.matricola||""),id:e.id});
+      else if(isSoon(x.prox))items.push({tier:"soon30",text:"Filtro S"+x.stadio+" entro 30gg: "+(e.matricola||""),id:e.id});
+    });
+  });
+  return items;
+}
+function refreshBell(){
+  var items=buildNotifications();
+  var cnt=document.getElementById("bellCount");
+  var panel=document.getElementById("bellPanel");
+  if(!cnt||!panel)return;
+  if(items.length){cnt.textContent=String(items.length>99?99:items.length);cnt.classList.add("show");}
+  else {cnt.classList.remove("show");}
+  if(!items.length){panel.innerHTML='<div class="bell-item">Nessuna notifica</div>';return;}
+  panel.innerHTML=items.slice(0,40).map(function(it){
+    return '<div class="bell-item '+it.tier+'" onclick="toggleBell();openFromOggi(\''+it.id+'\')">'+it.text+'</div>';
+  }).join("");
+}
+function toggleBell(){
+  var p=document.getElementById("bellPanel");
+  if(!p)return;
+  p.classList.toggle("show");
+  if(p.classList.contains("show"))refreshBell();
+}
+document.addEventListener("click",function(ev){
+  var w=document.querySelector(".bell-wrap");
+  if(w&&!w.contains(ev.target)){var p=document.getElementById("bellPanel");if(p)p.classList.remove("show");}
+});
+
+function openComments(id){
+  var e=equipment.find(function(x){return x.id===id;});if(!e)return;
+  currentCommentsEquipId=id;
+  document.getElementById("commentsDeviceInfo").innerHTML=clienteName(e.clienteId)+" - "+(e.acronimo||"")+" - "+(e.matricola||"");
+  document.getElementById("commentText").value="";
+  document.getElementById("commentsModal").classList.add("show");
+  loadComments();
+}
+function closeCommentsModal(){document.getElementById("commentsModal").classList.remove("show");}
+async function loadComments(){
+  var box=document.getElementById("commentsList");
+  box.innerHTML="Caricamento...";
+  var res=await sb.from("comments").select("*").eq("equip_id",currentCommentsEquipId).order("created_at",{ascending:false});
+  if(res.error){box.innerHTML='<div class="history-empty">Tabella comments assente o errore:<br>'+res.error.message+'<br><br>SQL:<br>create table if not exists comments (id uuid primary key default gen_random_uuid(), equip_id uuid references equipment(id) on delete cascade, username text, body text, created_at timestamptz default now());</div>';return;}
+  var list=res.data||[];
+  if(!list.length){box.innerHTML='<div class="history-empty">Nessun commento</div>';return;}
+  box.innerHTML=list.map(function(c){
+    var dt=c.created_at?new Date(c.created_at).toLocaleString("it-IT"):"-";
+    return '<div class="comment-box"><div class="comment-meta"><strong>'+(c.username||"?")+'</strong> · '+dt+'</div>'+(c.body||"")+'</div>';
+  }).join("");
+}
+async function saveComment(){
+  var body=document.getElementById("commentText").value.trim();
+  if(!body){alert("Scrivi un commento");return;}
+  var res=await sb.from("comments").insert([{equip_id:currentCommentsEquipId,username:currentUser.username,body:body}]);
+  if(res.error){alert(res.error.message+"\n\nCrea la tabella comments (vedi messaggio in elenco).");return;}
+  document.getElementById("commentText").value="";
+  toast("Commento pubblicato");
+  loadComments();
+}
+
+function openPacchettoModal(){
+  var sel=document.getElementById("paccCliente");
+  sel.innerHTML="";
+  clienti.forEach(function(c){sel.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});
+  if(!isSuper()&&currentUser.clienteId){sel.value=currentUser.clienteId;sel.disabled=true;}else sel.disabled=false;
+  document.getElementById("pacchettoModal").classList.add("show");
+}
+function closePacchettoModal(){document.getElementById("pacchettoModal").classList.remove("show");}
+function doPacchettoExport(){
+  var cid=document.getElementById("paccCliente").value;
+  if(!cid){alert("Seleziona cliente");return;}
+  document.getElementById("expCliente").value=cid;
+  document.getElementById("expStato").value="";
+  document.getElementById("expScadenza").value="";
+  document.getElementById("expAcronimo").value="";
+  // reuse doExportCustom logic by temporarily setting visible
+  var list=equipment.filter(function(e){return e.clienteId===cid;});
+  if(!list.length){alert("Nessun DPC per questo cliente");return;}
+  var rows=[["Cliente","Codice cliente","Acronimo","Costruttore","Modello","Matricola","ID","Ultima","Prossima","Prox filtro","Status filtro","Sede","Edificio","Lab","Piano","Stanza","Stato","Referente","Cadenza","Attivita","Filtro","Stadi","Accessori","Note"]];
+  for(var i=1;i<=4;i++)rows[0].push("S"+i+" Codice","S"+i+" Misure","S"+i+" Tipo","S"+i+" Qty","S"+i+" Data","S"+i+" Prox","S"+i+" Status");
+  list.forEach(function(e){
+    var nf=nextFilterProx(e);var stf=nf?autoFilterStatus(nf.prox):"";
+    var r=[clienteName(e.clienteId),clienteCode(e.clienteId),e.acronimo,e.costruttore,e.modello,e.matricola,e.idDispositivo,e.ultimaMan,e.prossimaMan,nf?("S"+nf.stadio+" "+nf.prox):"",stf,e.sede,e.edificio,e.laboratorio,e.piano,e.stanza,e.stato,e.responsabile,e.cadenzaMan,(e.tipoAttivita||[]).join(", "),e.haSistemaFiltrante,e.stadiFiltranti,e.accessori,e.note];
+    for(var i=1;i<=4;i++){var s=(e.filtriStadi&&e.filtriStadi[String(i)])?e.filtriStadi[String(i)]:emptyStage();r.push(s.codice,s.misure,s.tipologia,s.qty,s.data_install,s.prox,s.status||autoFilterStatus(s.prox));}
+    rows.push(r);
+  });
+  var ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"DPC");
+  XLSX.writeFile(wb,"pacchetto_"+clienteName(cid).replace(/\s+/g,"_")+"_"+new Date().toISOString().slice(0,10)+".xlsx");
+  toast("Pacchetto: "+list.length+" DPC");
+  closePacchettoModal();
+}
+
+function exportReportMensile(){
+  var now=new Date(), y=now.getFullYear(), m=now.getMonth();
+  var start=new Date(y,m,1).toISOString().slice(0,10);
+  var end=new Date(y,m+1,0).toISOString().slice(0,10);
+  var eq=visibleEquipment();
+  var rows=[["Report mensile",start,"→",end],[],["Cliente","Acronimo","Matricola","ID","Stato","Prossima man","Status man","Prox filtro","Status filtro","Sede"]];
+  eq.forEach(function(e){
+    var nf=nextFilterProx(e);
+    rows.push([clienteName(e.clienteId),e.acronimo,e.matricola,e.idDispositivo,e.stato,e.prossimaMan,autoFilterStatus(e.prossimaMan)||expStatusSimple(e.prossimaMan),nf?nf.prox:"",nf?autoFilterStatus(nf.prox):"",e.sede]);
+  });
+  rows.push([]);
+  rows.push(["Riepilogo"]);
+  var scad=eq.filter(function(e){return deviceExpiryStatus(e)==="overdue";}).length;
+  var soon=eq.filter(function(e){return deviceExpiryStatus(e)==="soon";}).length;
+  var ok=eq.filter(function(e){return deviceExpiryStatus(e)==="ok"||deviceExpiryStatus(e)==="none";}).length;
+  rows.push(["DPC totali",eq.length],["Scaduti",scad],["In scadenza (30gg)",soon],["In regola",ok]);
+  var ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Report");
+  XLSX.writeFile(wb,"report_mensile_"+start+".xlsx");
+  toast("Report mensile esportato");
+}
+
+function closeDiffModal(){document.getElementById("diffModal").classList.remove("show");pendingSaveRow=null;}
+async function confirmSaveEquipment(){
+  if(!pendingSaveRow)return;
+  closeDiffModal();
+  // fallback not used if confirm() path - keep for modal compatibility
+}
+
+(async function(){try{if(!window.supabase){document.getElementById("loadingError").textContent="Libreria Supabase non caricata (CDN). Ricarica la pagina.";return;}sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);var t=await sb.from("users").select("id").limit(1);if(t.error){document.getElementById("loadingError").textContent="Supabase: "+t.error.message;return;}document.getElementById("loadingOverlay").classList.add("hidden");checkSession();}catch(e){var el=document.getElementById("loadingError");if(el)el.textContent="Avvio: "+(e.message||e);console.error(e);}})();
+(function(){try{var pw=document.getElementById("loginPassword");if(pw)pw.addEventListener("keydown",function(e){if(e.key==="Enter")doLogin();});}catch(e){console.error(e);}})();
+window.addEventListener("error",function(ev){try{var el=document.getElementById("loadingError");if(el&&ev&&ev.message)el.textContent="Errore: "+ev.message;}catch(e){}});
+
+</script>
+</body>
+</html>
