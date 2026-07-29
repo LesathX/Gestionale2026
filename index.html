@@ -221,7 +221,8 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
       <button class="btn btn-excel" onclick="exportExcel()"><i class="fas fa-file-excel"></i> Export</button>
       <label class="btn btn-excel" id="btnImportExcel" style="display:none;cursor:pointer"><i class="fas fa-file-import"></i> Import Excel<input type="file" accept=".xlsx,.xls" hidden onchange="importExcel(event)"></label>
       <label class="btn btn-secondary" id="btnImport" style="display:none;cursor:pointer"><i class="fas fa-upload"></i> JSON<input type="file" accept=".json" hidden onchange="importData(event)"></label>
-      <button class="btn btn-primary" id="btnNuovo" style="display:none" onclick="openModal()"><i class="fas fa-plus"></i> Nuovo</button>
+      <button class="btn btn-primary" id="btnNuovo" style="display:none" onclick="openModal()"><i class="fas fa-plus"></i> Nuovo DPC</button>
+      <button class="btn btn-oggi" id="btnNuovoIntervento" style="display:none" onclick="openNuovoInterventoModal()"><i class="fas fa-wrench"></i> Nuovo intervento</button>
       <button class="btn btn-danger" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Esci</button>
     </div>
   </div></header>
@@ -385,6 +386,37 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
   </div>
 </div></div>
 
+
+<div id="nuovoInterventoModal" class="modal-overlay"><div class="modal" style="max-width:640px">
+  <div class="modal-header"><h2>Nuovo intervento</h2><button class="modal-close" onclick="closeNuovoInterventoModal()">&times;</button></div>
+  <div class="modal-body">
+    <p class="device-info">Assegna un intervento a un tecnico. Quando verrà segnato come <strong>Fatto</strong>, si aprirà lo storico del DPC per registrare l&apos;esecuzione e chiudere l&apos;intervento.</p>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr">
+      <div class="form-group"><label>Cliente *</label><select id="niCliente" onchange="fillNiDpc()"></select></div>
+      <div class="form-group"><label>DPC *</label><select id="niDpc"></select></div>
+      <div class="form-group"><label>Tipo intervento *</label>
+        <select id="niTipo">
+          <option value="">-</option>
+          <option>Manutenzione ordinaria</option>
+          <option>Manutenzione straordinaria</option>
+          <option>Cambio filtri</option>
+          <option>Nuova installazione</option>
+          <option>Verifica periodica</option>
+          <option>Sostituzione componenti</option>
+          <option>Altro</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Tecnico *</label><input id="niTecnico" placeholder="nome tecnico"></div>
+      <div class="form-group"><label>Data pianificata *</label><input type="date" id="niData"></div>
+      <div class="form-group full"><label>Note</label><input id="niNote" placeholder="dettagli, urgenza, ricambi..."></div>
+    </div>
+    <div class="form-actions" style="justify-content:flex-start;gap:.5rem">
+      <button class="btn btn-save" onclick="saveNuovoIntervento()"><i class="fas fa-save"></i> Assegna intervento</button>
+      <button class="btn-cancel" onclick="closeNuovoInterventoModal()">Annulla</button>
+    </div>
+  </div>
+</div></div>
+
 <div id="historyModal" class="modal-overlay"><div class="modal modal-lg">
   <div class="modal-header"><h2>Storico</h2><button class="modal-close" onclick="closeHistoryModal()">&times;</button></div>
   <div class="modal-body">
@@ -397,7 +429,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
         <div class="form-group"><label>Data *</label><input type="date" id="manData"></div>
         <div class="form-group"><label>Tecnico *</label><input id="manTecnico"></div>
         <div class="form-group"><label>Costo € (opz.)</label><input type="number" step="0.01" min="0" id="manCosto" placeholder="0.00"></div>
-        <div class="form-group"><label>Tipo *</label><select id="manTipo"><option value="">-</option><option>Manutenzione ordinaria</option><option>Manutenzione straordinaria</option><option>Verifica periodica</option><option>Sostituzione filtri</option><option>Altro</option></select></div>
+        <div class="form-group"><label>Tipo *</label><select id="manTipo"><option value="">-</option><option>Manutenzione ordinaria</option><option>Manutenzione straordinaria</option><option>Cambio filtri</option><option>Sostituzione filtri</option><option>Nuova installazione</option><option>Verifica periodica</option><option>Sostituzione componenti</option><option>Altro</option></select></div>
         <div class="form-group full"><label>Allegato</label><input type="file" id="manFile" accept=".pdf,image/*"><input type="url" id="manAllegato" placeholder="oppure link"></div>
         <div class="form-group full"><label>Note</label><textarea id="manNote" rows="2"></textarea></div>
         <div class="form-group full"><label class="checkbox-row"><input type="checkbox" id="manAggiornaUltime" checked> Aggiorna ultima man.</label></div>
@@ -691,7 +723,7 @@ const DAYS_WARN_15=15;
 const BACKUP_DAYS=1;
 const STATI_DPC=["OPERATIVA","IN PRODUZIONE","MANUTENZIONE","DA INSTALLARE","IN DISUSO","DISMESSA","NON DI COMPETENZA CAMI"];
 var sb,equipment=[],clienti=[],users=[],tecnicoClienti=[],currentUser=null;
-var currentHistoryEquipId=null,currentReportEquipId=null,currentCanEdit=false,pendingExcelFile=null;
+var currentHistoryEquipId=null,currentReportEquipId=null,currentCanEdit=false,pendingExcelFile=null,pendingAssiId=null;
 try{if(typeof emailjs!=="undefined")emailjs.init(EMAILJS_PUBLIC_KEY);}catch(e){}
 
 /* Safe storage: evita SecurityError in documenti sandbox senza allow-same-origin */
@@ -824,6 +856,7 @@ async function doLogin(){var u=document.getElementById("loginUsername").value.tr
 function doLogout(){currentUser=null;safeRemoveSession(SESSION_KEY);document.getElementById("app").classList.remove("show");document.getElementById("loginScreen").classList.remove("hidden");}
 function checkSession(){try{var s=safeGetSession(SESSION_KEY);if(s){currentUser=JSON.parse(s);showApp();return;}}catch(e){}document.getElementById("loginScreen").classList.remove("hidden");}
 async function showApp(){document.getElementById("loginScreen").classList.add("hidden");document.getElementById("app").classList.add("show");document.getElementById("currentUserName").textContent=currentUser.nome;document.getElementById("currentUserRole").textContent="("+roleLabel(currentUser.role)+")";var s=isSuper(),c=canCreateDpc(),t=isTecnico(),a=isBackOfficer(),bo=isBackOfficer();document.getElementById("btnNuovo").style.display=c?"inline-flex":"none";
+  var bni=document.getElementById("btnNuovoIntervento");if(bni)bni.style.display=(s||a||t)?"inline-flex":"none";
   document.getElementById("btnUsers").style.display=canManageUsers()?"inline-flex":"none";
   document.getElementById("btnClienti").style.display=canManageClienti()?"inline-flex":"none";
   var bat=document.getElementById("btnAssegnaTecnico");if(bat)bat.style.display=canAssignTecnico()?"inline-flex":"none";
@@ -1029,8 +1062,34 @@ async function deleteUser(id){
   await sb.from("users").delete().eq("id",id);
   toast("Eliminato");await loadAll();renderUsers();
 }
-function openHistory(id){var e=equipment.find(function(x){return x.id===id;});if(!e)return;currentHistoryEquipId=id;currentCanEdit=canEditInterventi(e.clienteId);document.getElementById("historyDeviceInfo").innerHTML=clienteName(e.clienteId)+" - "+(e.acronimo||"")+" - "+(e.matricola||"");document.getElementById("manData").value=new Date().toISOString().slice(0,10);document.getElementById("manTecnico").value=currentUser.nome||"";document.getElementById("manTipo").value="";document.getElementById("manFile").value="";document.getElementById("manAllegato").value="";document.getElementById("manNote").value="";if(document.getElementById("manCosto"))document.getElementById("manCosto").value="";document.getElementById("historyAddSection").style.display=currentCanEdit?"block":"none";document.getElementById("historyModal").classList.add("show");loadHistory();}
-function closeHistoryModal(){document.getElementById("historyModal").classList.remove("show");}
+function openHistory(id, prefill){
+  var e=equipment.find(function(x){return x.id===id;});if(!e)return;
+  currentHistoryEquipId=id;
+  currentCanEdit=canEditInterventi(e.clienteId);
+  document.getElementById("historyDeviceInfo").innerHTML=clienteName(e.clienteId)+" - "+(e.acronimo||"")+" - "+(e.matricola||"")+(prefill&&prefill.fromAssi?" <span class=\"badge badge-amber\">Chiusura intervento assegnato</span>":"");
+  document.getElementById("manData").value=(prefill&&prefill.data)||new Date().toISOString().slice(0,10);
+  document.getElementById("manTecnico").value=(prefill&&prefill.tecnico)||(currentUser.nome||"");
+  var tipo=(prefill&&prefill.tipo)||"";
+  var mt=document.getElementById("manTipo");
+  if(mt){
+    // se il tipo non è nelle option, lo aggiunge
+    var found=false;
+    for(var i=0;i<mt.options.length;i++){if(mt.options[i].value===tipo){found=true;break;}}
+    if(tipo&&!found){var o=document.createElement("option");o.value=tipo;o.textContent=tipo;mt.appendChild(o);}
+    mt.value=tipo;
+  }
+  document.getElementById("manFile").value="";
+  document.getElementById("manAllegato").value="";
+  document.getElementById("manNote").value=(prefill&&prefill.note)||"";
+  if(document.getElementById("manCosto"))document.getElementById("manCosto").value="";
+  document.getElementById("historyAddSection").style.display=currentCanEdit?"block":"none";
+  document.getElementById("historyModal").classList.add("show");
+  loadHistory();
+}
+function closeHistoryModal(){
+  document.getElementById("historyModal").classList.remove("show");
+  pendingAssiId=null;
+}
 async function loadHistory(){var res=await sb.from("manutenzioni").select("*").eq("equip_id",currentHistoryEquipId).order("data",{ascending:false});if(res.error){alert(res.error.message);return;}var list=res.data||[],empty=document.getElementById("historyEmpty"),table=document.getElementById("historyTable"),tb=document.getElementById("historyTableBody");if(!list.length){empty.style.display="block";table.style.display="none";return;}empty.style.display="none";table.style.display="table";var html="";list.forEach(function(m){var al=m.allegato_url?'<a href="'+m.allegato_url+'" target="_blank">Apri</a>':"-";html+="<tr><td>"+fmt(m.data)+"</td><td>"+(m.tecnico||"-")+"</td><td>"+(m.tipo_intervento||"-")+"</td><td>"+(m.note||"-")+"</td><td>"+al+"</td></tr>";});tb.innerHTML=html;}
 async function saveManutenzione(){if(!currentCanEdit)return;var data=document.getElementById("manData").value,tecnico=document.getElementById("manTecnico").value.trim(),tipo=document.getElementById("manTipo").value;if(!data||!tecnico||!tipo){alert("Compila i campi");return;}var file=document.getElementById("manFile").files[0],link=document.getElementById("manAllegato").value.trim();
   var o=getObbligatori();
@@ -1045,7 +1104,14 @@ async function saveManutenzione(){if(!currentCanEdit)return;var data=document.ge
   var ins={equip_id:currentHistoryEquipId,data:data,tecnico:tecnico,tipo_intervento:tipo,note:document.getElementById("manNote").value.trim(),allegato_url:url||"",storage_path:path,creato_da:currentUser.username};
   if(costo!==null&&!isNaN(costo))ins.costo=costo;
   var res=await sb.from("manutenzioni").insert([ins]);if(res.error)throw res.error;if(document.getElementById("manAggiornaUltime").checked)await sb.from("equipment").update({ultima_man:data}).eq("id",currentHistoryEquipId);var eq=equipment.find(function(x){return x.id===currentHistoryEquipId;});await logAudit("UPDATE",eq,"Manutenzione: "+tipo);toast("Salvato");await loadHistory();await loadAll();
-  if(eq&&confirm("Generare report PDF dell\'intervento?")){
+  if(pendingAssiId){
+    try{
+      await sb.from("assegnazioni").update({done:true}).eq("id",pendingAssiId);
+      toast("Intervento assegnato chiuso");
+      pendingAssiId=null;
+    }catch(ex){console.warn(ex);}
+  }
+  if(eq&&confirm("Generare report PDF dell'intervento?")){
     generateManutenzionePdf(eq,{data:data,tecnico:tecnico,tipo:tipo,note:document.getElementById("manNote").value.trim(),costo:costo});
   }
   }catch(e){alert(e.message||e);}btn.disabled=false;}
@@ -2070,6 +2136,68 @@ async function confirmSaveEquipment(){
 
 
 /* ===== Assegna tecnico (multi-cliente) ===== */
+
+/* ===== Nuovo intervento (header) ===== */
+function openNuovoInterventoModal(){
+  if(!(isSuper()||isBackOfficer()||isTecnico())){alert("Permesso negato");return;}
+  var sc=document.getElementById("niCliente");
+  sc.innerHTML='<option value="">Seleziona...</option>';
+  var list=clienti;
+  if(isTecnico()){
+    var ids=userClienteIds();
+    list=clienti.filter(function(c){return ids.indexOf(c.id)>-1;});
+  }
+  list.forEach(function(c){sc.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});
+  document.getElementById("niTecnico").value=(currentUser&&currentUser.nome)||"";
+  document.getElementById("niData").value=new Date().toISOString().slice(0,10);
+  document.getElementById("niTipo").value="";
+  document.getElementById("niNote").value="";
+  fillNiDpc();
+  document.getElementById("nuovoInterventoModal").classList.add("show");
+}
+function closeNuovoInterventoModal(){document.getElementById("nuovoInterventoModal").classList.remove("show");}
+function fillNiDpc(){
+  var cid=document.getElementById("niCliente").value;
+  var sd=document.getElementById("niDpc");
+  sd.innerHTML='<option value="">Seleziona...</option>';
+  if(!cid)return;
+  equipment.filter(function(e){return e.clienteId===cid;}).forEach(function(e){
+    sd.innerHTML+='<option value="'+e.id+'">'+(e.acronimo||"")+' · '+(e.matricola||"")+' · '+(e.sede||"")+'</option>';
+  });
+}
+async function saveNuovoIntervento(){
+  if(!(isSuper()||isBackOfficer()||isTecnico())){alert("Permesso negato");return;}
+  var cid=document.getElementById("niCliente").value;
+  var eid=document.getElementById("niDpc").value;
+  var tipo=document.getElementById("niTipo").value;
+  var tec=(document.getElementById("niTecnico").value||"").trim();
+  var data=document.getElementById("niData").value;
+  var note=(document.getElementById("niNote").value||"").trim();
+  if(!cid||!eid||!tipo||!tec||!data){alert("Compila Cliente, DPC, Tipo, Tecnico e Data");return;}
+  if(isTecnico()&&!canEditAnagrafica(cid)){alert("Puoi assegnare interventi solo sui clienti a te assegnati");return;}
+  var e=equipment.find(function(x){return x.id===eid;});
+  if(!e){alert("DPC non trovato");return;}
+  var row={
+    equip_id:eid,
+    cliente_id:cid,
+    acronimo:e.acronimo||"",
+    matricola:e.matricola||"",
+    sede:e.sede||"",
+    tecnico:tec,
+    data:data,
+    tipo:tipo,
+    note:note,
+    done:false,
+    creato_da:currentUser?currentUser.username:""
+  };
+  var res=await sb.from("assegnazioni").insert([row]);
+  if(res.error){alert(res.error.message+"\n\nVerifica che esista la tabella assegnazioni su Supabase.");return;}
+  toast("Intervento assegnato a "+tec);
+  closeNuovoInterventoModal();
+  try{await logAudit("INTERVENTO",e,"Assegnato a "+tec+": "+tipo);}catch(ex){}
+}
+
+
 function openAssegnaTecnicoModal(){
   if(!canAssignTecnico())return;
   var sel=document.getElementById("assiTecUser");
@@ -2313,8 +2441,12 @@ async function renderAssegnazioni(){
     return;
   }
   list=list.filter(function(a){
-    if(isSuper())return true;
-    if(currentUser.clienteId)return a.cliente_id===currentUser.clienteId;
+    if(isSuper()||isBackOfficer())return true;
+    if(isTecnico()){
+      var ids=userClienteIds();
+      if(!ids.length)return true; // vede tutte in sola lettura lista, o filtra?
+      return ids.indexOf(a.cliente_id)>-1 || (a.tecnico&&currentUser&&a.tecnico.toLowerCase().indexOf((currentUser.nome||"").toLowerCase())>-1);
+    }
     return true;
   });
   if(!list.length){box.innerHTML='<p class="history-empty">Nessuna assegnazione</p>';return;}
@@ -2329,10 +2461,39 @@ async function renderAssegnazioni(){
 async function toggleAssi(id){
   var list=window._assiList||[];
   var a=list.find(function(x){return x.id===id;});
-  if(!a)return;
-  var res=await sb.from("assegnazioni").update({done:!a.done}).eq("id",id);
+  if(!a){
+    // ricarica se lista stale
+    list=await loadAssiFromDb()||[];
+    a=list.find(function(x){return x.id===id;});
+  }
+  if(!a){alert("Assegnazione non trovata");return;}
+  if(a.done){
+    // Riapri = solo togli done
+    var res=await sb.from("assegnazioni").update({done:false}).eq("id",id);
+    if(res.error){alert(res.error.message);return;}
+    toast("Intervento riaperto");
+    await renderAssegnazioni();
+    return;
+  }
+  // Fatto → marca done e apri storico per chiudere con registrazione
+  if(!a.equip_id){alert("DPC non collegato a questa assegnazione");return;}
+  var res=await sb.from("assegnazioni").update({done:true}).eq("id",id);
   if(res.error){alert(res.error.message);return;}
+  pendingAssiId=id;
   await renderAssegnazioni();
+  // chiudi tools se aperti
+  try{
+    document.getElementById("toolsPage").classList.remove("show");
+    document.getElementById("app").style.display="";
+  }catch(e){}
+  openHistory(a.equip_id,{
+    fromAssi:true,
+    data:a.data||new Date().toISOString().slice(0,10),
+    tecnico:a.tecnico||(currentUser&&currentUser.nome)||"",
+    tipo:a.tipo||"",
+    note:a.note||""
+  });
+  toast("Registra l'intervento nello storico per chiudere");
 }
 async function deleteAssi(id){
   if(!confirm("Eliminare assegnazione?"))return;
