@@ -529,7 +529,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
 
 
   <div id="tab-mag" class="tools-panel">
-    <p class="device-info">Magazzino filtri: codici, quantità, scorta minima. I dati restano su questo browser (localStorage) e si possono esportare.</p>
+    <p class="device-info">Magazzino filtri condiviso su cloud (Supabase). Codici, quantità, scorta minima. Visibile da tutti i dispositivi.</p>
     <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;max-width:900px">
       <div class="form-group"><label>Codice filtro *</label><input id="magCodice"></div>
       <div class="form-group"><label>Descrizione</label><input id="magDesc"></div>
@@ -555,7 +555,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
   </div>
 
   <div id="tab-assi" class="tools-panel">
-    <p class="device-info">Assegna interventi ai tecnici: scegli DPC, tecnico e data pianificata. Visibile anche in «Cosa fare oggi».</p>
+    <p class="device-info">Assegnazioni condivise su cloud. Scegli DPC, tecnico e data. Visibili da tutti i dispositivi e in «Cosa fare oggi».</p>
     <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;max-width:800px">
       <div class="form-group"><label>Cliente</label><select id="assiCliente" onchange="fillAssiDpc()"></select></div>
       <div class="form-group"><label>DPC</label><select id="assiDpc"></select></div>
@@ -1549,16 +1549,17 @@ function openOggiModal(){
   });
   list.innerHTML=html;
   // Assegnazioni tecniche del giorno / future
-  try{
-    var assi=getAssi().filter(function(a){return !a.done;});
-    if(assi.length){
-      var ah='<div class="section-title" style="margin-top:1rem">Assegnazioni tecnici</div>';
-      assi.slice(0,20).forEach(function(a){
-        ah+='<div class="oggi-item soon"><div><span class="oggi-tag man">ASS</span> <strong>'+(a.tecnico||"")+'</strong> · '+(a.acronimo||"")+' · '+(a.matricola||"")+'<div class="oggi-meta">'+fmt(a.data)+' · '+(a.tipo||"")+(a.sede?" · "+a.sede:"")+'</div></div></div>';
-      });
-      list.innerHTML=html+ah;
-    }
-  }catch(e){}
+  loadAssiFromDb().then(function(assi){
+    if(!assi||!assi.length)return;
+    assi=assi.filter(function(a){return !a.done;});
+    if(!isSuper()&&currentUser&&currentUser.clienteId)assi=assi.filter(function(a){return a.cliente_id===currentUser.clienteId;});
+    if(!assi.length)return;
+    var ah='<div class="section-title" style="margin-top:1rem">Assegnazioni tecnici</div>';
+    assi.slice(0,20).forEach(function(a){
+      ah+='<div class="oggi-item soon"><div><span class="oggi-tag man">ASS</span> <strong>'+(a.tecnico||"")+'</strong> · '+(a.acronimo||"")+' · '+(a.matricola||"")+'<div class="oggi-meta">'+fmt(a.data)+' · '+(a.tipo||"")+(a.sede?" · "+a.sede:"")+'</div></div></div>';
+    });
+    list.innerHTML=html+ah;
+  }).catch(function(){});
 }
 
 function checkSoftBlock(e){
@@ -1901,57 +1902,91 @@ function notifyExpiringOnLogin(){
   }
 }
 
-/* ===== Magazzino filtri (n.6) ===== */
-var MAG_KEY="cami_magazzino_filtri_v1";
-function getMag(){try{return JSON.parse(safeGetLocal(MAG_KEY,"[]")||"[]");}catch(e){return[];}}
-function setMag(arr){safeSetLocal(MAG_KEY,JSON.stringify(arr));}
-function renderMag(){
-  var list=getMag();
-  var low=0;
-  var h="";
-  list.sort(function(a,b){return String(a.codice).localeCompare(String(b.codice));});
-  list.forEach(function(m,i){
-    var st=m.qty<=m.min;
-    if(st)low++;
-    h+="<tr class='"+(st?"row-overdue":"")+"'><td><code>"+m.codice+"</code></td><td>"+(m.desc||"-")+"</td><td>"+m.qty+"</td><td>"+m.min+"</td><td>"+(st?"<span class='status-badge status-scaduto'>SOTTO SCORTA</span>":"<span class='status-badge status-ok'>OK</span>")+"</td><td><button class='btn-icon delete' onclick='deleteMagItem("+i+")'><i class='fas fa-trash'></i></button></td></tr>";
-  });
-  document.getElementById("magSum").textContent=list.length+" articoli · "+low+" sotto scorta";
-  document.getElementById("magBody").innerHTML=h||"<tr><td colspan='6'>Magazzino vuoto</td></tr>";
+
+/* ===== Magazzino filtri (n.6) – Supabase condiviso ===== */
+async function loadMagFromDb(){
+  try{
+    var res=await sb.from("magazzino_filtri").select("*").order("codice");
+    if(res.error)throw res.error;
+    return res.data||[];
+  }catch(e){
+    console.warn("magazzino",e);
+    return null; // null = tabella assente
+  }
 }
-function saveMagItem(){
+async function renderMag(){
+  var boxSum=document.getElementById("magSum");
+  var body=document.getElementById("magBody");
+  if(!body)return;
+  body.innerHTML="<tr><td colspan='6'>Caricamento...</td></tr>";
+  var list=await loadMagFromDb();
+  if(list===null){
+    if(boxSum)boxSum.innerHTML='Tabella assente. Esegui in SQL Editor:<br><code>create table if not exists magazzino_filtri (id uuid primary key default gen_random_uuid(), codice text unique not null, descrizione text, qty int default 0, min_scorta int default 1, updated_at timestamptz default now());</code>';
+    body.innerHTML="<tr><td colspan='6'>Crea la tabella magazzino_filtri (vedi messaggio sopra)</td></tr>";
+    return;
+  }
+  var low=0,h="";
+  list.forEach(function(m){
+    var st=(m.qty||0)<=(m.min_scorta||0);
+    if(st)low++;
+    h+="<tr class='"+(st?"row-overdue":"")+"'><td><code>"+(m.codice||"")+"</code></td><td>"+(m.descrizione||"-")+"</td><td>"+(m.qty||0)+"</td><td>"+(m.min_scorta||0)+"</td><td>"+(st?"<span class='status-badge status-scaduto'>SOTTO SCORTA</span>":"<span class='status-badge status-ok'>OK</span>")+"</td><td><button class='btn-icon delete' onclick=\"deleteMagItem('"+m.id+"')\"><i class='fas fa-trash'></i></button></td></tr>";
+  });
+  if(boxSum)boxSum.textContent=list.length+" articoli · "+low+" sotto scorta (condiviso su cloud)";
+  body.innerHTML=h||"<tr><td colspan='6'>Magazzino vuoto</td></tr>";
+  window._magList=list;
+}
+async function saveMagItem(){
+  if(!(isSuper()||isAdmin()||isTecnico())){alert("Permesso negato");return;}
   var codice=(document.getElementById("magCodice").value||"").trim().toUpperCase();
   if(!codice){alert("Codice obbligatorio");return;}
   var desc=(document.getElementById("magDesc").value||"").trim();
   var qty=parseInt(document.getElementById("magQty").value,10);if(isNaN(qty))qty=0;
   var min=parseInt(document.getElementById("magMin").value,10);if(isNaN(min))min=0;
-  var list=getMag();
-  var found=-1;
-  list.forEach(function(m,i){if(m.codice===codice)found=i;});
-  var item={codice:codice,desc:desc,qty:qty,min:min};
-  if(found>=0)list[found]=item;else list.push(item);
-  setMag(list);
-  toast(found>=0?"Articolo aggiornato":"Articolo aggiunto");
+  var row={codice:codice,descrizione:desc,qty:qty,min_scorta:min,updated_at:new Date().toISOString()};
+  // upsert by codice
+  var existing=await sb.from("magazzino_filtri").select("id").eq("codice",codice).limit(1);
+  if(existing.error){alert(existing.error.message+"\n\nCrea la tabella magazzino_filtri (vedi Strumenti → Magazzino).");return;}
+  var res;
+  if(existing.data&&existing.data.length){
+    res=await sb.from("magazzino_filtri").update(row).eq("id",existing.data[0].id);
+  }else{
+    res=await sb.from("magazzino_filtri").insert([row]);
+  }
+  if(res.error){alert(res.error.message);return;}
+  toast("Articolo salvato su cloud");
   document.getElementById("magCodice").value="";
   document.getElementById("magDesc").value="";
-  renderMag();
+  document.getElementById("magQty").value="0";
+  await renderMag();
 }
-function deleteMagItem(i){
-  var list=getMag();
-  if(!confirm("Eliminare "+(list[i]&&list[i].codice)+"?"))return;
-  list.splice(i,1);setMag(list);renderMag();
+async function deleteMagItem(id){
+  if(!(isSuper()||isAdmin())){alert("Solo admin");return;}
+  if(!confirm("Eliminare questo articolo dal magazzino?"))return;
+  var res=await sb.from("magazzino_filtri").delete().eq("id",id);
+  if(res.error){alert(res.error.message);return;}
+  toast("Eliminato");
+  await renderMag();
 }
-function exportMag(){
+async function exportMag(){
+  var list=window._magList||await loadMagFromDb()||[];
   var rows=[["Codice","Descrizione","Qty","Scorta min"]];
-  getMag().forEach(function(m){rows.push([m.codice,m.desc,m.qty,m.min]);});
+  list.forEach(function(m){rows.push([m.codice,m.descrizione,m.qty,m.min_scorta]);});
   var ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,"Magazzino");
   XLSX.writeFile(wb,"magazzino_filtri.xlsx");
 }
 
-/* ===== Assegnazioni tecnici (n.3) ===== */
-var ASSI_KEY="cami_assegnazioni_v1";
-function getAssi(){try{return JSON.parse(safeGetLocal(ASSI_KEY,"[]")||"[]");}catch(e){return[];}}
-function setAssi(a){safeSetLocal(ASSI_KEY,JSON.stringify(a));}
+/* ===== Assegnazioni tecnici (n.3) – Supabase condiviso ===== */
+async function loadAssiFromDb(){
+  try{
+    var res=await sb.from("assegnazioni").select("*").order("data",{ascending:true});
+    if(res.error)throw res.error;
+    return res.data||[];
+  }catch(e){
+    console.warn("assegnazioni",e);
+    return null;
+  }
+}
 function fillAssiCliente(){
   var s=document.getElementById("assiCliente");if(!s)return;
   s.innerHTML="";
@@ -1970,7 +2005,7 @@ function fillAssiDpc(){
     s.innerHTML+='<option value="'+e.id+'">'+(e.acronimo||"")+" · "+(e.matricola||"")+" · "+(e.sede||"")+'</option>';
   });
 }
-function saveAssegnazione(){
+async function saveAssegnazione(){
   if(!(isSuper()||isAdmin()||isTecnico())){alert("Permesso negato");return;}
   var eid=document.getElementById("assiDpc").value;
   var tec=(document.getElementById("assiTecnico").value||"").trim();
@@ -1979,29 +2014,62 @@ function saveAssegnazione(){
   var note=(document.getElementById("assiNote").value||"").trim();
   if(!eid||!tec||!data){alert("DPC, tecnico e data obbligatori");return;}
   var e=equipment.find(function(x){return x.id===eid;});
-  var list=getAssi();
-  list.push({id:Date.now().toString(36),equipId:eid,clienteId:e?e.clienteId:null,acronimo:e?e.acronimo:"",matricola:e?e.matricola:"",sede:e?e.sede:"",tecnico:tec,data:data,tipo:tipo,note:note,done:false});
-  setAssi(list);
-  toast("Assegnazione salvata");
-  renderAssegnazioni();
+  var row={
+    equip_id:eid,
+    cliente_id:e?e.clienteId:null,
+    acronimo:e?e.acronimo:"",
+    matricola:e?e.matricola:"",
+    sede:e?e.sede:"",
+    tecnico:tec,
+    data:data,
+    tipo:tipo,
+    note:note,
+    done:false,
+    creato_da:currentUser?currentUser.username:""
+  };
+  var res=await sb.from("assegnazioni").insert([row]);
+  if(res.error){alert(res.error.message+"\n\nCrea la tabella assegnazioni (SQL in Strumenti → Assegnazioni se compare l'avviso).");return;}
+  toast("Assegnazione salvata su cloud");
+  document.getElementById("assiNote").value="";
+  await renderAssegnazioni();
 }
-function renderAssegnazioni(){
+async function renderAssegnazioni(){
   var box=document.getElementById("assiList");if(!box)return;
-  var list=getAssi().filter(function(a){
+  box.innerHTML="Caricamento...";
+  var list=await loadAssiFromDb();
+  if(list===null){
+    box.innerHTML='<div class="device-info">Tabella assente. Esegui in SQL Editor:<br><code style="font-size:.72rem">create table if not exists assegnazioni (<br>id uuid primary key default gen_random_uuid(),<br>equip_id uuid, cliente_id uuid, acronimo text, matricola text, sede text,<br>tecnico text, data date, tipo text, note text, done boolean default false,<br>creato_da text, created_at timestamptz default now());</code></div>';
+    return;
+  }
+  list=list.filter(function(a){
     if(isSuper())return true;
-    if(currentUser.clienteId)return a.clienteId===currentUser.clienteId;
+    if(currentUser.clienteId)return a.cliente_id===currentUser.clienteId;
     return true;
-  }).sort(function(a,b){return String(a.data).localeCompare(String(b.data));});
+  });
   if(!list.length){box.innerHTML='<p class="history-empty">Nessuna assegnazione</p>';return;}
   var h="";
   list.forEach(function(a){
-    var overdue=daysUntil(a.data)!==null&&daysUntil(a.data)<0;
+    var overdue=a.data&&daysUntil(a.data)!==null&&daysUntil(a.data)<0&&!a.done;
     h+='<div class="oggi-item '+(a.done?"":(overdue?"overdue":"soon"))+'"><div><strong>'+(a.acronimo||"")+' · '+(a.matricola||"")+'</strong> · '+(a.tecnico||"")+'<div class="oggi-meta">'+fmt(a.data)+' · '+(a.tipo||"")+' · '+(a.sede||"")+(a.note?" · "+a.note:"")+(a.done?" · FATTO":"")+'</div></div><div style="display:flex;gap:.3rem"><button class="btn btn-primary" style="padding:.25rem .5rem" onclick="toggleAssi(\''+a.id+'\')">'+(a.done?"Riapri":"Fatto")+'</button><button class="btn btn-danger" style="padding:.25rem .5rem" onclick="deleteAssi(\''+a.id+'\')">X</button></div></div>';
   });
   box.innerHTML=h;
+  window._assiList=list;
 }
-function toggleAssi(id){var list=getAssi();list.forEach(function(a){if(a.id===id)a.done=!a.done;});setAssi(list);renderAssegnazioni();}
-function deleteAssi(id){if(!confirm("Eliminare assegnazione?"))return;setAssi(getAssi().filter(function(a){return a.id!==id;}));renderAssegnazioni();}
+async function toggleAssi(id){
+  var list=window._assiList||[];
+  var a=list.find(function(x){return x.id===id;});
+  if(!a)return;
+  var res=await sb.from("assegnazioni").update({done:!a.done}).eq("id",id);
+  if(res.error){alert(res.error.message);return;}
+  await renderAssegnazioni();
+}
+async function deleteAssi(id){
+  if(!confirm("Eliminare assegnazione?"))return;
+  var res=await sb.from("assegnazioni").delete().eq("id",id);
+  if(res.error){alert(res.error.message);return;}
+  toast("Eliminata");
+  await renderAssegnazioni();
+}
 
 /* ===== Mappa sedi (n.9) ===== */
 var _mapObj=null,_mapMarkers=[];
