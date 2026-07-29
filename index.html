@@ -222,6 +222,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
       <label class="btn btn-excel" id="btnImportExcel" style="display:none;cursor:pointer"><i class="fas fa-file-import"></i> Import Excel<input type="file" accept=".xlsx,.xls" hidden onchange="importExcel(event)"></label>
       <label class="btn btn-secondary" id="btnImport" style="display:none;cursor:pointer"><i class="fas fa-upload"></i> JSON<input type="file" accept=".json" hidden onchange="importData(event)"></label>
       <button class="btn btn-primary" id="btnNuovo" style="display:none" onclick="openModal()"><i class="fas fa-plus"></i> Nuovo DPC</button>
+      <button class="btn btn-secondary" id="btnInterventiAssegnati" style="display:none" onclick="openInterventiAssegnatiModal()"><i class="fas fa-clipboard-list"></i> Interventi assegnati</button>
       <button class="btn btn-oggi" id="btnNuovoIntervento" style="display:none" onclick="openNuovoInterventoModal()"><i class="fas fa-wrench"></i> Nuovo intervento</button>
       <button class="btn btn-danger" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Esci</button>
     </div>
@@ -387,13 +388,33 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
 </div></div>
 
 
-<div id="nuovoInterventoModal" class="modal-overlay"><div class="modal" style="max-width:640px">
+
+<div id="interventiAssegnatiModal" class="modal-overlay"><div class="modal modal-lg">
+  <div class="modal-header"><h2>Interventi assegnati</h2><button class="modal-close" onclick="closeInterventiAssegnatiModal()">&times;</button></div>
+  <div class="modal-body">
+    <p class="device-info">Elenco interventi pianificati. Tutti possono visualizzare. Solo Super admin e Back Officer possono modificare/eliminare. Il tecnico può segnare <strong>Fatto</strong> (apre lo storico DPC).</p>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;max-width:720px;margin-bottom:.75rem">
+      <div class="form-group"><label>Filtro stato</label>
+        <select id="iaFiltroStato" onchange="renderInterventiAssegnati()">
+          <option value="">Tutti</option>
+          <option value="open">Aperti</option>
+          <option value="done">Completati</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Filtro tecnico</label><input id="iaFiltroTec" oninput="renderInterventiAssegnati()" placeholder="nome..."></div>
+      <div class="form-group"><label>Filtro cliente</label><select id="iaFiltroCli" onchange="renderInterventiAssegnati()"><option value="">Tutti</option></select></div>
+    </div>
+    <div id="iaList">Caricamento...</div>
+  </div>
+</div></div>
+
+<div id="nuovoInterventoModal" class="modal-overlay"><div class="modal" style="max-width:700px">
   <div class="modal-header"><h2>Nuovo intervento</h2><button class="modal-close" onclick="closeNuovoInterventoModal()">&times;</button></div>
   <div class="modal-body">
-    <p class="device-info">Assegna un intervento a un tecnico. Quando verrà segnato come <strong>Fatto</strong>, si aprirà lo storico del DPC per registrare l&apos;esecuzione e chiudere l&apos;intervento.</p>
+    <p class="device-info">Seleziona uno o più DPC, tipo intervento e tecnico. Dopo il salvataggio gli interventi compaiono in <strong>Interventi assegnati</strong>. Premendo <strong>Fatto</strong> si apre lo storico del DPC per chiudere l&apos;esecuzione.</p>
     <div class="form-grid" style="grid-template-columns:1fr 1fr">
       <div class="form-group"><label>Cliente *</label><select id="niCliente" onchange="fillNiDpc()"></select></div>
-      <div class="form-group"><label>DPC *</label><select id="niDpc"></select></div>
+      <div class="form-group"><label>Tecnico *</label><input id="niTecnico" placeholder="nome tecnico"></div>
       <div class="form-group"><label>Tipo intervento *</label>
         <select id="niTipo">
           <option value="">-</option>
@@ -406,12 +427,15 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
           <option>Altro</option>
         </select>
       </div>
-      <div class="form-group"><label>Tecnico *</label><input id="niTecnico" placeholder="nome tecnico"></div>
       <div class="form-group"><label>Data pianificata *</label><input type="date" id="niData"></div>
+      <div class="form-group full"><label>DPC * (Ctrl/Cmd o Shift per selezionarne più di uno)</label>
+        <select id="niDpc" multiple size="8" style="height:auto;min-height:160px;width:100%"></select>
+        <small class="hint">Puoi selezionare più dispositivi dello stesso cliente.</small>
+      </div>
       <div class="form-group full"><label>Note</label><input id="niNote" placeholder="dettagli, urgenza, ricambi..."></div>
     </div>
     <div class="form-actions" style="justify-content:flex-start;gap:.5rem">
-      <button class="btn btn-save" onclick="saveNuovoIntervento()"><i class="fas fa-save"></i> Assegna intervento</button>
+      <button class="btn btn-save" onclick="saveNuovoIntervento()"><i class="fas fa-save"></i> Assegna intervento/i</button>
       <button class="btn-cancel" onclick="closeNuovoInterventoModal()">Annulla</button>
     </div>
   </div>
@@ -722,7 +746,7 @@ const DAYS_WARN_7=7;
 const DAYS_WARN_15=15;
 const BACKUP_DAYS=1;
 const STATI_DPC=["OPERATIVA","IN PRODUZIONE","MANUTENZIONE","DA INSTALLARE","IN DISUSO","DISMESSA","NON DI COMPETENZA CAMI"];
-var sb,equipment=[],clienti=[],users=[],tecnicoClienti=[],currentUser=null;
+var sb,equipment=[],clienti=[],clientiAll=[],users=[],tecnicoClienti=[],currentUser=null;
 var currentHistoryEquipId=null,currentReportEquipId=null,currentCanEdit=false,pendingExcelFile=null,pendingAssiId=null;
 try{if(typeof emailjs!=="undefined")emailjs.init(EMAILJS_PUBLIC_KEY);}catch(e){}
 
@@ -791,7 +815,9 @@ function canEditAnagrafica(cid){
   return false;
 }
 function canEditInterventi(cid){return canEditAnagrafica(cid);}
-function canManageClienti(){return isSuper()||isBackOfficer();}
+function canManageClienti(){return isSuper()||isBackOfficer()||isTecnico();}
+function canDeleteClienti(){return isSuper()||isBackOfficer();}
+function canRecoverClienti(){return isSuper();}
 function canManageUsers(){return isSuper()||isBackOfficer();}
 function canManageAllUsers(){return isSuper();}
 function canBackup(){return isSuper();}
@@ -840,7 +866,7 @@ function checkAutoBackup(){try{var last=parseInt(safeGetLocal(LAST_BACKUP_KEY,"0
 function showFotoPreview(url){var img=document.getElementById("fotoPreview");if(!img)return;if(url){img.src=url;img.classList.add("show");}else{img.src="";img.classList.remove("show");}}
 async function uploadFotoIfAny(equipId){var fileInput=document.getElementById("fotoFile");var file=fileInput&&fileInput.files&&fileInput.files[0];if(!file)return{url:document.getElementById("fotoUrl").value||"",path:document.getElementById("fotoPath").value||""};var path=(equipId||"tmp")+"/"+Date.now()+"_"+safeName(file.name);var up=await sb.storage.from("foto").upload(path,file,{upsert:true});if(up.error)throw up.error;return{url:sb.storage.from("foto").getPublicUrl(path).data.publicUrl,path:path};}
 
-async function loadAll(){var c=await sb.from("clienti").select("*").order("nome");if(c.error)throw c.error;clienti=c.data||[];var e=await sb.from("equipment").select("*").order("matricola");if(e.error)throw e.error;equipment=(e.data||[]).map(mapEquip);var u=await sb.from("users").select("*").order("username");if(u.error)throw u.error;users=u.data||[];try{var tc=await sb.from("tecnico_clienti").select("*");tecnicoClienti=(tc&&!tc.error)?(tc.data||[]):[];}catch(ex){tecnicoClienti=[];}if(currentUser&&isTecnico()){currentUser.clienteIds=tecnicoClienti.filter(function(x){return x.user_id===currentUser.id;}).map(function(x){return x.cliente_id;});if(!currentUser.clienteIds.length&&currentUser.clienteId)currentUser.clienteIds=[currentUser.clienteId];}fillFilters();updatePermBanner();renderStats();renderClientStats();renderTable();updateExpiry();}
+async function loadAll(){var c=await sb.from("clienti").select("*").order("nome");if(c.error)throw c.error;clientiAll=c.data||[];clienti=(clientiAll||[]).filter(function(x){return !x.deleted_at;});var e=await sb.from("equipment").select("*").order("matricola");if(e.error)throw e.error;equipment=(e.data||[]).map(mapEquip);var u=await sb.from("users").select("*").order("username");if(u.error)throw u.error;users=u.data||[];try{var tc=await sb.from("tecnico_clienti").select("*");tecnicoClienti=(tc&&!tc.error)?(tc.data||[]):[];}catch(ex){tecnicoClienti=[];}if(currentUser&&isTecnico()){currentUser.clienteIds=tecnicoClienti.filter(function(x){return x.user_id===currentUser.id;}).map(function(x){return x.cliente_id;});if(!currentUser.clienteIds.length&&currentUser.clienteId)currentUser.clienteIds=[currentUser.clienteId];}fillFilters();updatePermBanner();renderStats();renderClientStats();renderTable();updateExpiry();}
 function updatePermBanner(){var el=document.getElementById("permBanner");if(!el)return;if(isSuper())el.textContent="Super admin – gestione completa.";else if(isBackOfficer())el.textContent="Back Officer – clienti, DPC, interventi, strumenti e assegnazione tecnici.";else if(isTecnico()){var ids=userClienteIds();var names=ids.map(clienteName).filter(Boolean).join(", ");el.textContent=names?("Tecnico – puoi modificare: "+names+" (gli altri clienti sono in sola lettura)."):"Tecnico – nessun cliente assegnato (sola lettura).";}else el.textContent="Accesso limitato";}
 function fillFilters(){var fc=document.getElementById("filterCliente"),cur=fc.value;fc.innerHTML='<option value="">Tutti i clienti</option>';clienti.forEach(function(c){fc.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});fc.value=cur;var ac={},se={};equipment.forEach(function(e){if(e.acronimo)ac[e.acronimo]=1;if(e.sede)se[e.sede]=1;});var fa=document.getElementById("filterAcronimo"),ca=fa.value;fa.innerHTML='<option value="">Acronimi</option>';Object.keys(ac).sort().forEach(function(a){fa.innerHTML+='<option>'+a+'</option>';});fa.value=ca;var fs=document.getElementById("filterSede"),cs=fs.value;fs.innerHTML='<option value="">Sedi</option>';Object.keys(se).sort().forEach(function(s){fs.innerHTML+='<option>'+s+'</option>';});fs.value=cs;var sel=document.getElementById("clienteId");if(sel){var v=sel.value;sel.innerHTML='<option value="">Seleziona...</option>';clienti.forEach(function(c){sel.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});sel.value=v;}var uc=document.getElementById("userClienteId");if(uc){uc.innerHTML='<option value="">- nessuno -</option>';clienti.forEach(function(c){uc.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});}}
 function renderStats(){var sc=0,so=0;var eqList=visibleEquipment();eqList.forEach(function(e){var d=deviceExpiryStatus(e);if(d==="overdue")sc++;else if(d==="soon")so++;});document.getElementById("statsContainer").innerHTML='<div class="stat-card"><div class="stat-value">'+eqList.length+'</div><div class="stat-label">DPC</div></div><div class="stat-card"><div class="stat-value">'+clienti.length+'</div><div class="stat-label">Clienti</div></div><div class="stat-card"><div class="stat-value">'+eqList.filter(function(e){return e.stato==="OPERATIVA"||e.stato==="IN PRODUZIONE";}).length+'</div><div class="stat-label">Operative</div></div><div class="stat-card"><div class="stat-value '+(sc?"stat-red":"")+'">'+sc+'</div><div class="stat-label">Scaduti</div></div><div class="stat-card"><div class="stat-value '+(so?"stat-orange":"")+'">'+so+'</div><div class="stat-label">In scadenza</div></div><div class="stat-card"><div class="stat-value">'+users.length+'</div><div class="stat-label">Utenti</div></div>';}
@@ -856,6 +882,7 @@ async function doLogin(){var u=document.getElementById("loginUsername").value.tr
 function doLogout(){currentUser=null;safeRemoveSession(SESSION_KEY);document.getElementById("app").classList.remove("show");document.getElementById("loginScreen").classList.remove("hidden");}
 function checkSession(){try{var s=safeGetSession(SESSION_KEY);if(s){currentUser=JSON.parse(s);showApp();return;}}catch(e){}document.getElementById("loginScreen").classList.remove("hidden");}
 async function showApp(){document.getElementById("loginScreen").classList.add("hidden");document.getElementById("app").classList.add("show");document.getElementById("currentUserName").textContent=currentUser.nome;document.getElementById("currentUserRole").textContent="("+roleLabel(currentUser.role)+")";var s=isSuper(),c=canCreateDpc(),t=isTecnico(),a=isBackOfficer(),bo=isBackOfficer();document.getElementById("btnNuovo").style.display=c?"inline-flex":"none";
+  var bia=document.getElementById("btnInterventiAssegnati");if(bia)bia.style.display=(s||a||t)?"inline-flex":"none";
   var bni=document.getElementById("btnNuovoIntervento");if(bni)bni.style.display=(s||a||t)?"inline-flex":"none";
   document.getElementById("btnUsers").style.display=canManageUsers()?"inline-flex":"none";
   document.getElementById("btnClienti").style.display=canManageClienti()?"inline-flex":"none";
@@ -937,11 +964,68 @@ function openClientiModal(){if(!canManageClienti())return;resetClienteForm();ren
 function closeClientiModal(){document.getElementById("clientiModal").classList.remove("show");}
 function resetClienteForm(){document.getElementById("editClienteId").value="";document.getElementById("cliNome").value="";document.getElementById("cliCodice").value="";document.getElementById("cliCitta").value="";document.getElementById("cliNote").value="";var a=document.getElementById("cliContrattoInizio");if(a)a.value="";var b=document.getElementById("cliContrattoFine");if(b)b.value="";var c=document.getElementById("cliContrattoNote");if(c)c.value="";}
 function countDpc(cid){return equipment.filter(function(e){return e.clienteId===cid;}).length;}
-function renderClienti(){var html="";clienti.forEach(function(c){html+="<tr><td>"+c.nome+"</td><td>"+(c.codice||"-")+"</td><td>"+(c.citta||"-")+"</td><td>"+countDpc(c.id)+'</td><td><button class="btn-icon edit" onclick="editCliente(\''+c.id+'\')"><i class="fas fa-pen"></i></button> <button class="btn-icon delete" onclick="deleteCliente(\''+c.id+'\')"><i class="fas fa-trash"></i></button></td></tr>';});document.getElementById("clientiTableBody").innerHTML=html;}
+function renderClienti(){
+  var html="";
+  var list=isSuper()? (clientiAll||clienti) : clienti;
+  list.forEach(function(c){
+    var archived=!!c.deleted_at;
+    var ind=c.indirizzo?(" · "+c.indirizzo):"";
+    html+="<tr style='"+(archived?"opacity:.55":"")+"'><td>"+c.nome+(archived?" <span class=\"badge badge-rose\">ARCHIVIATO</span>":"")+"</td><td>"+(c.codice||"-")+"</td><td>"+(c.citta||"-")+ind+"</td><td>"+countDpc(c.id)+"</td><td>";
+    if(!archived){
+      html+='<button class="btn-icon edit" onclick="editCliente(\''+c.id+'\')"><i class="fas fa-pen"></i></button> ';
+      if(canDeleteClienti())html+='<button class="btn-icon delete" onclick="deleteCliente(\''+c.id+'\')"><i class="fas fa-trash"></i></button>';
+    }else if(canRecoverClienti()){
+      html+='<button class="btn btn-primary" style="padding:.2rem .45rem;font-size:.72rem" onclick="recoverCliente(\''+c.id+'\')">Recupera</button>';
+    }
+    html+="</td></tr>";
+  });
+  document.getElementById("clientiTableBody").innerHTML=html||"<tr><td colspan='5'>Nessun cliente</td></tr>";
+}
 function editCliente(id){var c=clienti.find(function(x){return x.id===id;});if(!c)return;document.getElementById("editClienteId").value=c.id;document.getElementById("cliNome").value=c.nome||"";document.getElementById("cliCodice").value=c.codice||"";document.getElementById("cliCitta").value=c.citta||"";document.getElementById("cliNote").value=c.note||"";var a=document.getElementById("cliContrattoInizio");if(a)a.value=c.contratto_inizio||c.contrattoInizio||"";var b=document.getElementById("cliContrattoFine");if(b)b.value=c.contratto_fine||c.contrattoFine||"";var n=document.getElementById("cliContrattoNote");if(n)n.value=c.contratto_note||c.contrattoNote||"";}
-async function saveCliente(){if(!canManageClienti())return;var nome=reqNA(document.getElementById("cliNome").value),codice=reqNA(document.getElementById("cliCodice").value),citta=reqNA(document.getElementById("cliCitta").value),note=reqNA(document.getElementById("cliNote").value);if(!nome||!codice||!citta||!note){alert("Tutti obbligatori. Usa N.A. se manca un dato.");return;}var id=document.getElementById("editClienteId").value,row={nome:nome,codice:codice,citta:citta,note:note};var ci=document.getElementById("cliContrattoInizio");var cf=document.getElementById("cliContrattoFine");var cn=document.getElementById("cliContrattoNote");if(ci)row.contratto_inizio=ci.value||null;if(cf)row.contratto_fine=cf.value||null;if(cn)row.contratto_note=(cn.value||"").trim()||null;var res=id?await sb.from("clienti").update(row).eq("id",id):await sb.from("clienti").insert([row]);if(res.error){alert(res.error.message+"\n\nSe manca la colonna contratto, esegui in SQL:\nalter table clienti add column if not exists contratto_inizio date;\nalter table clienti add column if not exists contratto_fine date;\nalter table clienti add column if not exists contratto_note text;");return;}toast("Cliente salvato");resetClienteForm();await loadAll();renderClienti();}
-async function deleteCliente(id){if(!canManageClienti())return;var c=clienti.find(function(x){return x.id===id;}),n=countDpc(id),nome=c?c.nome:"questo cliente";var msg=n>0?("ATTENZIONE\n\nIl cliente \""+nome+"\" ha "+n+" DPC collegati.\nEliminando il cliente verranno eliminati anche tutti i suoi DPC.\n\nVuoi procedere comunque?"):("Eliminare il cliente \""+nome+"\"?");if(!confirm(msg))return;if(n>0&&!confirm("Confermi l'eliminazione di "+n+" DPC del cliente \""+nome+"\"?"))return;if(n>0){var delEq=await sb.from("equipment").delete().eq("cliente_id",id);if(delEq.error){alert("Errore eliminazione DPC:\n"+delEq.error.message);return;}}await sb.from("users").update({cliente_id:null}).eq("cliente_id",id);var res=await sb.from("clienti").delete().eq("id",id);if(res.error){alert(res.error.message);return;}try{await logAudit("DELETE",null,"Cliente eliminato: "+nome+(n?" - "+n+" DPC":""));}catch(e){}toast("Cliente eliminato"+(n?" ("+n+" DPC)":""));await loadAll();renderClienti();}
-function openUsersModal(){if(!canManageUsers())return;resetUserForm();fillFilters();fillUserClientiMulti();renderUsers();document.getElementById("usersModal").classList.add("show");}
+async function saveCliente(){
+  if(!canManageClienti())return;
+  var nome=reqNA(document.getElementById("cliNome").value),codice=reqNA(document.getElementById("cliCodice").value),citta=reqNA(document.getElementById("cliCitta").value),note=reqNA(document.getElementById("cliNote").value);
+  if(!nome||!codice||!citta||!note){alert("Nome, codice, città e note obbligatori. Usa N.A. se manca un dato.");return;}
+  var id=document.getElementById("editClienteId").value;
+  var row={nome:nome,codice:codice,citta:citta,note:note};
+  var ind=document.getElementById("cliIndirizzo");if(ind)row.indirizzo=(ind.value||"").trim()||null;
+  var ci=document.getElementById("cliContrattoInizio");var cf=document.getElementById("cliContrattoFine");var cn=document.getElementById("cliContrattoNote");
+  if(ci)row.contratto_inizio=ci.value||null;if(cf)row.contratto_fine=cf.value||null;if(cn)row.contratto_note=(cn.value||"").trim()||null;
+  var res=id?await sb.from("clienti").update(row).eq("id",id):await sb.from("clienti").insert([row]);
+  if(res.error){
+    alert(res.error.message+"\n\nSe manca la colonna indirizzo, esegui:\nalter table clienti add column if not exists indirizzo text;");
+    return;
+  }
+  toast("Cliente salvato");resetClienteForm();await loadAll();renderClienti();
+}
+
+async function deleteCliente(id){
+  if(!canDeleteClienti()){alert("Non puoi eliminare clienti");return;}
+  var c=clientiAll.find(function(x){return x.id===id;})||clienti.find(function(x){return x.id===id;});
+  var n=countDpc(id),nome=c?c.nome:"questo cliente";
+  if(!confirm("Archiviare il cliente \""+nome+"\"?"+(n?"\n("+n+" DPC collegati restano, ma il cliente non sarà più attivo.)":"")))return;
+  // Soft delete: non cancella i DPC
+  var res=await sb.from("clienti").update({deleted_at:new Date().toISOString()}).eq("id",id);
+  if(res.error){
+    // fallback hard delete se manca colonna deleted_at
+    if(!confirm("Soft-delete non disponibile ("+res.error.message+").\nEliminare definitivamente cliente e DPC?"))return;
+    if(n>0){var delEq=await sb.from("equipment").delete().eq("cliente_id",id);if(delEq.error){alert(delEq.error.message);return;}}
+    await sb.from("users").update({cliente_id:null}).eq("cliente_id",id);
+    res=await sb.from("clienti").delete().eq("id",id);
+    if(res.error){alert(res.error.message);return;}
+  }
+  try{await logAudit("DELETE",null,"Cliente archiviato: "+nome);}catch(e){}
+  toast("Cliente archiviato");
+  await loadAll();renderClienti();
+}
+async function recoverCliente(id){
+  if(!canRecoverClienti()){alert("Solo Super admin può recuperare clienti");return;}
+  var res=await sb.from("clienti").update({deleted_at:null}).eq("id",id);
+  if(res.error){alert(res.error.message+"\n\nEsegui: alter table clienti add column if not exists deleted_at timestamptz;");return;}
+  toast("Cliente recuperato");
+  await loadAll();renderClienti();
+}
+function openUsersModal(){if(!canManageUsers())return;ensureUserRoleOptions();resetUserForm();fillFilters();fillUserClientiMulti();renderUsers();document.getElementById("usersModal").classList.add("show");}
 function closeUsersModal(){document.getElementById("usersModal").classList.remove("show");}
 function resetUserForm(){
   document.getElementById("editUserId").value="";
@@ -956,16 +1040,38 @@ function resetUserForm(){
   if(sel)for(var i=0;i<sel.options.length;i++)sel.options[i].selected=false;
   toggleUserClienteField();
 }
+
+function ensureUserRoleOptions(){
+  var sel=document.getElementById("userRole");if(!sel)return;
+  sel.innerHTML="";
+  if(isSuper()){
+    [{v:"tecnico",t:"Tecnico"},{v:"backofficer",t:"Back Officer"},{v:"superadmin",t:"Super admin"}].forEach(function(o){
+      var el=document.createElement("option");el.value=o.v;el.textContent=o.t;sel.appendChild(el);
+    });
+    sel.disabled=false;
+  }else{
+    var el=document.createElement("option");el.value="tecnico";el.textContent="Tecnico";sel.appendChild(el);
+    sel.value="tecnico";
+    sel.disabled=true;
+  }
+}
+
 function toggleUserClienteField(){
   var r=document.getElementById("userRole").value;
   var wrap=document.getElementById("wrapUserCliente");
   var wrapM=document.getElementById("wrapUserClientiMulti");
   if(wrap)wrap.style.display="none";
   if(wrapM)wrapM.style.display=(r==="tecnico")?"block":"none";
-  // Back Officer creating users: only tecnico allowed unless superadmin
-  if(isBackOfficer()&&!isSuper()){
-    var sel=document.getElementById("userRole");
-    if(sel&&sel.value!=="tecnico"){sel.value="tecnico";if(wrapM)wrapM.style.display="block";}
+  var sel=document.getElementById("userRole");
+  if(isBackOfficer()&&!isSuper()&&sel){
+    // Back Officer: solo Tecnico, mai Super admin / Back Officer
+    for(var i=sel.options.length-1;i>=0;i--){
+      if(sel.options[i].value!=="tecnico")sel.remove(i);
+    }
+    if(!sel.options.length){var o=document.createElement("option");o.value="tecnico";o.textContent="Tecnico";sel.appendChild(o);}
+    sel.value="tecnico";
+    sel.disabled=true;
+    if(wrapM)wrapM.style.display="block";
   }
 }
 function fillUserClientiMulti(){
@@ -1025,7 +1131,8 @@ async function saveUser(){
   role=normalizeRole(role);
   if(!username){alert("Username obbligatorio");return;}
   if(!id&&(!password||password.length<4)){alert("Password min 4 caratteri");return;}
-  if(!isSuper()&&role!=="tecnico"){alert("Come Back Officer puoi creare solo tecnici");return;}
+  if(!isSuper()&&role!=="tecnico"){alert("Come Back Officer puoi creare solo tecnici.\nNon puoi creare Super admin o Back Officer.");return;}
+if(role==="superadmin"&&!isSuper()){alert("Solo un Super admin può creare altri Super admin");return;}
   var cliente_id=null;
   var row={username:username,nome:document.getElementById("userNome").value.trim(),role:role,cliente_id:cliente_id};
   if(password)row.password=password;
@@ -1107,9 +1214,19 @@ async function saveManutenzione(){if(!currentCanEdit)return;var data=document.ge
   if(pendingAssiId){
     try{
       await sb.from("assegnazioni").update({done:true}).eq("id",pendingAssiId);
-      toast("Intervento assegnato chiuso");
-      pendingAssiId=null;
     }catch(ex){console.warn(ex);}
+    var q=window._pendingAssiEquipQueue||[];
+    if(q.length){
+      var next=q.shift();
+      window._pendingAssiEquipQueue=q;
+      toast("DPC successivo ("+ (q.length+1) +" rimasti dopo questo)...");
+      setTimeout(function(){
+        openHistory(next,{fromAssi:true,data:data,tecnico:tecnico,tipo:tipo,note:document.getElementById("manNote").value.trim()});
+      },400);
+    }else{
+      pendingAssiId=null;
+      toast("Intervento assegnato chiuso su tutti i DPC");
+    }
   }
   if(eq&&confirm("Generare report PDF dell'intervento?")){
     generateManutenzionePdf(eq,{data:data,tecnico:tecnico,tipo:tipo,note:document.getElementById("manNote").value.trim(),costo:costo});
@@ -2159,42 +2276,132 @@ function closeNuovoInterventoModal(){document.getElementById("nuovoInterventoMod
 function fillNiDpc(){
   var cid=document.getElementById("niCliente").value;
   var sd=document.getElementById("niDpc");
-  sd.innerHTML='<option value="">Seleziona...</option>';
-  if(!cid)return;
-  equipment.filter(function(e){return e.clienteId===cid;}).forEach(function(e){
-    sd.innerHTML+='<option value="'+e.id+'">'+(e.acronimo||"")+' · '+(e.matricola||"")+' · '+(e.sede||"")+'</option>';
+  if(!sd)return;
+  sd.innerHTML="";
+  if(!cid){sd.innerHTML='<option disabled>Seleziona prima un cliente</option>';return;}
+  var list=equipment.filter(function(e){return e.clienteId===cid;});
+  if(!list.length){sd.innerHTML='<option disabled>Nessun DPC per questo cliente</option>';return;}
+  list.forEach(function(e){
+    var o=document.createElement("option");
+    o.value=e.id;
+    o.textContent=(e.acronimo||"")+" · "+(e.matricola||"")+" · "+(e.sede||"");
+    sd.appendChild(o);
   });
 }
 async function saveNuovoIntervento(){
   if(!(isSuper()||isBackOfficer()||isTecnico())){alert("Permesso negato");return;}
   var cid=document.getElementById("niCliente").value;
-  var eid=document.getElementById("niDpc").value;
+  var sd=document.getElementById("niDpc");
+  var eids=[];
+  if(sd){for(var i=0;i<sd.options.length;i++)if(sd.options[i].selected)eids.push(sd.options[i].value);}
   var tipo=document.getElementById("niTipo").value;
   var tec=(document.getElementById("niTecnico").value||"").trim();
   var data=document.getElementById("niData").value;
   var note=(document.getElementById("niNote").value||"").trim();
-  if(!cid||!eid||!tipo||!tec||!data){alert("Compila Cliente, DPC, Tipo, Tecnico e Data");return;}
+  if(!cid||!eids.length||!tipo||!tec||!data){alert("Compila Cliente, almeno un DPC, Tipo, Tecnico e Data");return;}
   if(isTecnico()&&!canEditAnagrafica(cid)){alert("Puoi assegnare interventi solo sui clienti a te assegnati");return;}
-  var e=equipment.find(function(x){return x.id===eid;});
-  if(!e){alert("DPC non trovato");return;}
+  var labels=[], mats=[];
+  eids.forEach(function(eid){
+    var e=equipment.find(function(x){return x.id===eid;});
+    if(!e)return;
+    labels.push((e.acronimo||"")+" "+(e.matricola||""));
+    mats.push(e.matricola||"");
+  });
+  if(!eids.length){alert("Nessun DPC valido");return;}
+  // UN solo intervento con più DPC
   var row={
-    equip_id:eid,
+    equip_id:eids[0],
+    equip_ids:eids,
     cliente_id:cid,
-    acronimo:e.acronimo||"",
-    matricola:e.matricola||"",
-    sede:e.sede||"",
+    acronimo:eids.length>1?("MULTI ("+eids.length+")") : (labels[0]||""),
+    matricola:mats.join(", "),
+    sede:(equipment.find(function(x){return x.id===eids[0];})||{}).sede||"",
     tecnico:tec,
     data:data,
     tipo:tipo,
-    note:note,
+    note:(note?(note+" | "):"")+(eids.length>1?("DPC: "+labels.join("; ")):""),
     done:false,
     creato_da:currentUser?currentUser.username:""
   };
   var res=await sb.from("assegnazioni").insert([row]);
-  if(res.error){alert(res.error.message+"\n\nVerifica che esista la tabella assegnazioni su Supabase.");return;}
-  toast("Intervento assegnato a "+tec);
+  if(res.error){
+    // fallback senza colonna equip_ids
+    delete row.equip_ids;
+    row.note=(row.note||"")+" | EQUIP_IDS:"+JSON.stringify(eids);
+    res=await sb.from("assegnazioni").insert([row]);
+  }
+  if(res.error){alert(res.error.message+"\n\nVerifica tabella assegnazioni.");return;}
+  toast("Intervento assegnato: "+eids.length+" DPC → "+tec);
   closeNuovoInterventoModal();
-  try{await logAudit("INTERVENTO",e,"Assegnato a "+tec+": "+tipo);}catch(ex){}
+  try{await logAudit("INTERVENTO",null,"1 intervento, "+eids.length+" DPC a "+tec+": "+tipo);}catch(ex){}
+}
+
+function parseAssiEquipIds(a){
+  if(!a)return[];
+  if(a.equip_ids){
+    if(Array.isArray(a.equip_ids))return a.equip_ids;
+    try{var p=typeof a.equip_ids==="string"?JSON.parse(a.equip_ids):a.equip_ids;if(Array.isArray(p))return p;}catch(e){}
+  }
+  if(a.note&&a.note.indexOf("EQUIP_IDS:")>=0){
+    try{var j=a.note.split("EQUIP_IDS:")[1];return JSON.parse(j);}catch(e){}
+  }
+  if(a.equip_id)return[a.equip_id];
+  return[];
+}
+
+function openInterventiAssegnatiModal(){
+  if(!(isSuper()||isBackOfficer()||isTecnico()))return;
+  var sc=document.getElementById("iaFiltroCli");
+  if(sc){
+    sc.innerHTML='<option value="">Tutti</option>';
+    clienti.forEach(function(c){sc.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});
+  }
+  document.getElementById("interventiAssegnatiModal").classList.add("show");
+  renderInterventiAssegnati();
+}
+function closeInterventiAssegnatiModal(){document.getElementById("interventiAssegnatiModal").classList.remove("show");}
+async function renderInterventiAssegnati(){
+  var box=document.getElementById("iaList");if(!box)return;
+  box.innerHTML="Caricamento...";
+  var list=await loadAssiFromDb();
+  if(list===null){
+    box.innerHTML='<div class="device-info">Tabella <code>assegnazioni</code> assente. Creala con lo SQL fornito.</div>';
+    return;
+  }
+  var fst=document.getElementById("iaFiltroStato")?document.getElementById("iaFiltroStato").value:"";
+  var fte=(document.getElementById("iaFiltroTec")?document.getElementById("iaFiltroTec").value:"").toLowerCase().trim();
+  var fcl=document.getElementById("iaFiltroCli")?document.getElementById("iaFiltroCli").value:"";
+  list=list.filter(function(a){
+    if(fst==="open"&&a.done)return false;
+    if(fst==="done"&&!a.done)return false;
+    if(fte&&String(a.tecnico||"").toLowerCase().indexOf(fte)<0)return false;
+    if(fcl&&a.cliente_id!==fcl)return false;
+    return true;
+  });
+  var canMod=isSuper()||isBackOfficer();
+  if(!list.length){box.innerHTML='<p class="history-empty">Nessun intervento</p>';return;}
+  var h="";
+  list.forEach(function(a){
+    var overdue=a.data&&daysUntil(a.data)!==null&&daysUntil(a.data)<0&&!a.done;
+    h+='<div class="oggi-item '+(a.done?"":(overdue?"overdue":"soon"))+'">';
+    h+='<div><strong>'+(a.acronimo||"")+' · '+(a.matricola||"")+'</strong> · '+clienteName(a.cliente_id);
+    h+='<div class="oggi-meta">'+fmt(a.data)+' · '+(a.tipo||"")+' · Tecnico: <strong>'+(a.tecnico||"-")+'</strong> · '+(a.sede||"")+(a.note?" · "+a.note:"")+(a.done?" · <span class=\"badge badge-green\">COMPLETATO</span>":" · <span class=\"badge badge-amber\">APERTO</span>")+'</div></div>';
+    h+='<div style="display:flex;gap:.3rem;flex-wrap:wrap">';
+    if(!a.done){
+      h+='<button class="btn btn-primary" style="padding:.25rem .5rem" onclick="toggleAssi(\''+a.id+'\')">Fatto</button>';
+    }else if(canMod){
+      h+='<button class="btn btn-secondary" style="padding:.25rem .5rem" onclick="toggleAssi(\''+a.id+'\')">Riapri</button>';
+    }
+    if(a.equip_id){
+      h+='<button class="btn btn-secondary" style="padding:.25rem .5rem" onclick="closeInterventiAssegnatiModal();openHistory(\''+a.equip_id+'\')">Storico</button>';
+    }
+    if(canMod){
+      h+='<button class="btn btn-danger" style="padding:.25rem .5rem" onclick="deleteAssi(\''+a.id+'\')">Elimina</button>';
+    }
+    h+='</div></div>';
+  });
+  box.innerHTML=h;
+  window._assiList=list;
 }
 
 
@@ -2462,45 +2669,50 @@ async function toggleAssi(id){
   var list=window._assiList||[];
   var a=list.find(function(x){return x.id===id;});
   if(!a){
-    // ricarica se lista stale
     list=await loadAssiFromDb()||[];
     a=list.find(function(x){return x.id===id;});
   }
   if(!a){alert("Assegnazione non trovata");return;}
   if(a.done){
-    // Riapri = solo togli done
+    if(!(isSuper()||isBackOfficer())){alert("Solo Super admin o Back Officer possono riaprire");return;}
     var res=await sb.from("assegnazioni").update({done:false}).eq("id",id);
     if(res.error){alert(res.error.message);return;}
     toast("Intervento riaperto");
     await renderAssegnazioni();
+    try{await renderInterventiAssegnati();}catch(e){}
     return;
   }
-  // Fatto → marca done e apri storico per chiudere con registrazione
-  if(!a.equip_id){alert("DPC non collegato a questa assegnazione");return;}
+  var ids=parseAssiEquipIds(a);
+  if(!ids.length){alert("Nessun DPC collegato");return;}
   var res=await sb.from("assegnazioni").update({done:true}).eq("id",id);
   if(res.error){alert(res.error.message);return;}
   pendingAssiId=id;
+  window._pendingAssiEquipQueue=ids.slice(1);
   await renderAssegnazioni();
-  // chiudi tools se aperti
+  try{await renderInterventiAssegnati();}catch(e){}
   try{
     document.getElementById("toolsPage").classList.remove("show");
     document.getElementById("app").style.display="";
+    closeInterventiAssegnatiModal();
   }catch(e){}
-  openHistory(a.equip_id,{
+  openHistory(ids[0],{
     fromAssi:true,
     data:a.data||new Date().toISOString().slice(0,10),
     tecnico:a.tecnico||(currentUser&&currentUser.nome)||"",
     tipo:a.tipo||"",
     note:a.note||""
   });
-  toast("Registra l'intervento nello storico per chiudere");
+  if(ids.length>1)toast("DPC 1/"+ids.length+" – dopo il salvataggio si apre il successivo");
+  else toast("Registra l'intervento nello storico per chiudere");
 }
+
 async function deleteAssi(id){
   if(!confirm("Eliminare assegnazione?"))return;
   var res=await sb.from("assegnazioni").delete().eq("id",id);
   if(res.error){alert(res.error.message);return;}
   toast("Eliminata");
   await renderAssegnazioni();
+  try{await renderInterventiAssegnati();}catch(e){}
 }
 
 /* ===== Mappa sedi (n.9) ===== */
