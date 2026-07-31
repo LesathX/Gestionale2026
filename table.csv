@@ -1,0 +1,7 @@
+File,Ruolo
+index.html,App + registrazione service worker
+manifest.webmanifest,"Nome, icone, modalità standalone"
+sw.js,Cache / funzionamento base offline
+icon-192.png,Icona
+icon-512.png,Icona
+apple-touch-icon.png,Icona iPhone
