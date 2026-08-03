@@ -983,20 +983,9 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
         <small class="hint" style="display:block;margin-top:.2rem;color:#64748b">Derivato dalla commessa (non modificabile).</small>
       </div>
       <div class="form-group"><label>Sede *</label><select id="niSede" onchange="fillNiDpc()"><option value="">Seleziona sede...</option></select></div>
-      <div class="form-group"><label>Tipo intervento *</label>
-        <select id="niTipo">
-<option value="">-</option>
-          <option>Manutenzione ordinaria</option>
-          <option>Manutenzione straordinaria</option>
-          <option>Controlli strumentali</option>
-          <option>Nuova installazione</option>
-          <option>Spostamento DPC</option>
-          <option>Cambio filtri</option>
-          <option>Verifica periodica</option>
-          <option>Smaltimento DPC</option>
-          <option>Sopralluogo</option>
-          <option>Altro</option>
-        </select>
+      <div class="form-group"><label>Tipo intervento</label>
+        <input id="niTipo" readonly style="background:#f8fafc;color:#334155" placeholder="Automatico dalla commessa">
+        <small class="hint" style="display:block;margin-top:.2rem;color:#64748b">Derivato dalla commessa (non modificabile).</small>
       </div>
       <div class="form-group"><label>Data pianificata *</label><input type="date" id="niData" onchange="checkNiTecnicoConflict()"></div>
       <div class="form-group full">
@@ -4202,6 +4191,7 @@ function onNiCommessaChange(){
   if(!c){
     if(hid)hid.value="";
     if(nome)nome.value="";
+    var tipoEl0=document.getElementById("niTipo");if(tipoEl0)tipoEl0.value="";
     // reset sede/dpc
     var ns=document.getElementById("niSede");
     if(ns){ns.innerHTML='<option value="">Seleziona sede...</option>';ns.disabled=true;}
@@ -4210,6 +4200,16 @@ function onNiCommessaChange(){
   }
   if(hid)hid.value=c.cliente_id||"";
   if(nome)nome.value=clienteName(c.cliente_id)||"";
+  // tipo intervento dalla commessa
+  var tipoEl=document.getElementById("niTipo");
+  if(tipoEl){
+    var t=c.tipo_interventi||c.tipo_intervento||"";
+    if(Array.isArray(t))t=t.join(", ");
+    else if(typeof t==="string"){
+      try{var p=JSON.parse(t);if(Array.isArray(p))t=p.join(", ");}catch(e){}
+    }
+    tipoEl.value=t||"";
+  }
   // aggiorna sede e dpc come se fosse scelto il cliente
   onNiClienteChange();
 }
@@ -4232,7 +4232,7 @@ async function openNuovoInterventoModal(){
   try{if(!commesse||!commesse.length)await loadCommesse();}catch(ex){}
   fillNiTecList();
   document.getElementById("niData").value=new Date().toISOString().slice(0,10);
-  document.getElementById("niTipo").value="";
+  var nt=document.getElementById("niTipo");if(nt)nt.value="";
   document.getElementById("niNote").value="";
   var se=document.getElementById("niDpcSearch");if(se)se.value="";
   var ca=document.getElementById("niConflictAlert");if(ca){ca.style.display="none";ca.innerHTML="";}
@@ -4419,7 +4419,7 @@ async function saveNuovoIntervento(){
   var note=(document.getElementById("niNote").value||"").trim();
   var commessaId=(document.getElementById("niCommessa")&&document.getElementById("niCommessa").value)||"";
   if(!commessaId){alert("Seleziona il N° Commessa a cui assegnare l'intervento.\nSenza commessa non è possibile creare l'intervento.");var nc=document.getElementById("niCommessa");if(nc)nc.focus();return;}
-  if(!cid||!eids.length||!tipo||!tecs.length||!data){alert("Compila Cliente, almeno un DPC, Tipo, almeno un Tecnico e Data");return;}
+  if(!cid||!eids.length||!tipo||!tecs.length||!data){alert("Compila Commessa (cliente/tipo), almeno un DPC, almeno un Tecnico e Data.\nSe manca il tipo, verifica che la commessa abbia i tipi intervento impostati.");return;}
   if(isTecnico()&&!canEditAnagrafica(cid)){alert("Puoi assegnare interventi solo sui clienti a te assegnati");return;}
   var list=await loadAssiFromDb()||[];
   var conflictNames=[];
