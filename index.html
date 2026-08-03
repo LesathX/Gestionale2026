@@ -442,7 +442,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
   <div id="pageCommesse" class="page-panel">
     <div class="stats" id="commesseStats"></div>
     <div class="filters"><div class="filters-inner">
-      <div class="search-wrap"><i class="fas fa-search"></i><input id="commesseSearch" placeholder="Cerca commessa, cliente, ROE, N° PROTOCOLLO OFC/AMM, N° PROTOCOLLO CON..." oninput="renderCommesse()"></div>
+      <div class="search-wrap"><i class="fas fa-search"></i><input id="commesseSearch" placeholder="Cerca commessa, cliente, ROE, N° PROTOCOLLO OFC, N° PROTOCOLLO CON..." oninput="renderCommesse()"></div>
       <select id="commesseFilterStato" onchange="renderCommesse()">
         <option value="aperte">Aperte</option>
         <option value="chiuse">Chiuse</option>
@@ -463,7 +463,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
             <th>Tipo intervento</th>
             <th>Referente cliente</th>
             <th>N° PROTOCOLLO ROE</th>
-            <th>N° PROTOCOLLO OFC/AMM</th>
+            <th>N° PROTOCOLLO OFC</th>
             <th>N° PROTOCOLLO CON</th>
             <th>CREATO DA</th>
             <th>RESPONSABILE COMMESSA</th>
@@ -834,7 +834,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
 <div id="commessaModal" class="modal-overlay"><div class="modal" style="max-width:720px">
   <div class="modal-header"><h2 id="commessaModalTitle">Nuova commessa</h2><button class="modal-close" onclick="closeCommessaModal()">&times;</button></div>
   <div class="modal-body">
-    <p class="device-info"><strong>Primo passo obbligatorio:</strong> N° PROTOCOLLO ROE e N° PROTOCOLLO OFC/AMM. CON opzionale (se vuoto → IN ATTESA DI ORDINE). Il <strong>numero commessa</strong> è progressivo (modificabile).</p>
+    <p class="device-info"><strong>Primo passo obbligatorio:</strong> N° PROTOCOLLO ROE, N° PROTOCOLLO OFC e N° PROTOCOLLO CON. Il <strong>numero commessa</strong> è progressivo automatico (modificabile).</p>
     <input type="hidden" id="commEditId">
     <div class="form-grid" style="grid-template-columns:1fr 1fr">
       <div class="form-group full" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:.5rem;padding:.75rem;grid-column:1/-1">
@@ -845,18 +845,11 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
             <input id="commProtocollo" placeholder="es. ROE-2026-0142" autocomplete="off" oninput="onCommProtocolloInput()">
           </div>
           <div class="form-group" style="margin:0">
-            <label style="color:#1e40af;font-weight:600">N° PROTOCOLLO OFC / AMM *</label>
-            <div style="display:flex;gap:.35rem">
-              <select id="commOfcTipo" style="width:5.5rem;flex-shrink:0" title="Tipo visualizzato in lista">
-                <option value="OFC">OFC</option>
-                <option value="AMM">AMM</option>
-              </select>
-              <input id="commOfc" placeholder="es. 1234" style="flex:1">
-            </div>
-            <small class="hint" style="display:block;margin-top:.2rem;color:#64748b">In lista: S {numero} OFC oppure S {numero} AMM</small>
+            <label style="color:#1e40af;font-weight:600">N° PROTOCOLLO OFC *</label>
+            <input id="commOfc" placeholder="es. OFC-2026-001">
           </div>
           <div class="form-group" style="margin:0">
-            <label style="color:#1e40af;font-weight:600">N° PROTOCOLLO CON</label>
+            <label style="color:#1e40af;font-weight:600">N° PROTOCOLLO CON *</label>
             <input id="commCon" placeholder="es. CON-2026-001">
           </div>
         </div>
@@ -866,19 +859,9 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
       <div class="form-group" style="display:none"><label>ID ROE</label><input id="commRoe" placeholder="= protocollo"></div>
       <div class="form-group"><label>Cliente *</label>
         <div style="display:flex;gap:.35rem;align-items:center">
-          <select id="commCliente" style="flex:1" onchange="onCommClienteChange()"><option value="">Seleziona...</option></select>
+          <select id="commCliente" style="flex:1"><option value="">Seleziona...</option></select>
           <button type="button" class="btn btn-secondary" title="Nuovo cliente" onclick="openQuickClienteModal('commessa')" style="white-space:nowrap;padding:.45rem .55rem"><i class="fas fa-plus"></i></button>
         </div>
-      </div>
-      <div class="form-group"><label>Sede</label>
-        <select id="commSede" onchange="onCommSedeChange()"><option value="">Tutte / non specificata</option></select>
-        <small class="hint">Segue il cliente. Opzionale.</small>
-      </div>
-      <div class="form-group full"><label>DPC collegati</label>
-        <div id="commDpcList" style="max-height:160px;overflow:auto;border:1px solid #e2e8f0;border-radius:.45rem;padding:.45rem;background:#f8fafc;font-size:.82rem">
-          <span style="color:#94a3b8">Seleziona prima un cliente</span>
-        </div>
-        <small class="hint">Opzionale. Filtrati per sede se impostata. Puoi selezionarne più di uno.</small>
       </div>
       <div class="form-group"><label>Durata (mesi) *</label><input type="number" id="commDurata" min="1" step="1" value="12" oninput="calcCommCadenza()"></div>
       <div class="form-group"><label>N° interventi previsti *</label><input type="number" id="commNInt" min="1" value="1" oninput="calcCommCadenza()"></div>
@@ -992,28 +975,17 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
     <div class="form-grid" style="grid-template-columns:1fr 1fr">
       <div class="form-group"><label>N° Commessa *</label>
         <select id="niCommessa" onchange="onNiCommessaChange()"><option value="">Seleziona commessa...</option></select>
-        <small class="hint" style="display:block;margin-top:.2rem;color:#64748b">Obbligatorio. Cliente, sede, DPC e tipo si precompilano (modificabili).</small>
+        <small class="hint" style="display:block;margin-top:.2rem;color:#64748b">Obbligatorio. Seleziona la commessa: il cliente si imposta da solo.</small>
       </div>
-      <div class="form-group"><label>Cliente *</label>
-        <select id="niCliente" onchange="onNiClienteChange()"><option value="">Seleziona...</option></select>
-        <small class="hint">Precompilato dalla commessa, modificabile.</small>
+      <div class="form-group"><label>Cliente</label>
+        <input id="niClienteNome" readonly style="background:#f8fafc;color:#334155" placeholder="Automatico dalla commessa">
+        <input type="hidden" id="niCliente" value="">
+        <small class="hint" style="display:block;margin-top:.2rem;color:#64748b">Derivato dalla commessa (non modificabile).</small>
       </div>
-      <div class="form-group"><label>Sede</label><select id="niSede" onchange="fillNiDpc()"><option value="">Seleziona sede...</option></select></div>
-      <div class="form-group"><label>Tipo intervento *</label>
-        <select id="niTipo">
-          <option value="">-</option>
-          <option>Manutenzione ordinaria</option>
-          <option>Manutenzione straordinaria</option>
-          <option>Controlli strumentali</option>
-          <option>Nuova installazione</option>
-          <option>Spostamento DPC</option>
-          <option>Cambio filtri</option>
-          <option>Verifica periodica</option>
-          <option>Smaltimento DPC</option>
-          <option>Sopralluogo</option>
-          <option>Altro</option>
-        </select>
-        <small class="hint">Precompilato dalla commessa, modificabile.</small>
+      <div class="form-group"><label>Sede *</label><select id="niSede" onchange="fillNiDpc()"><option value="">Seleziona sede...</option></select></div>
+      <div class="form-group"><label>Tipo intervento</label>
+        <input id="niTipo" readonly style="background:#f8fafc;color:#334155" placeholder="Automatico dalla commessa">
+        <small class="hint" style="display:block;margin-top:.2rem;color:#64748b">Derivato dalla commessa (non modificabile).</small>
       </div>
       <div class="form-group"><label>Data pianificata *</label><input type="date" id="niData" onchange="checkNiTecnicoConflict()"></div>
       <div class="form-group full">
@@ -1859,7 +1831,7 @@ async function renderCommesse(){
     h+="<td>"+formatCommTipi(c)+"</td>";
     h+="<td>"+ref+"</td>";
     h+="<td>"+fmtCommRoeLista(c.id_roe)+"</td>";
-    h+="<td>"+fmtCommOfcLista(c.id_ofc,c.ofc_tipo||c.protocollo_ofc_tipo)+"</td>";
+    h+="<td>"+fmtCommOfcLista(c.id_ofc)+"</td>";
     h+="<td>"+fmtCommConLista(c.id_con)+"</td>";
     h+="<td>"+(c.creato_da||c.username||"-")+"</td>";
     h+="<td>"+fmtCommResponsabile(c)+"</td>";
@@ -1909,33 +1881,27 @@ function fmtCommRoeLista(roe){
   return "R "+v+" ROE";
 }
 
-function fmtCommOfcLista(ofc, tipo){
+function fmtCommOfcLista(ofc){
   var raw=String(ofc||"").trim();
   if(!raw)return "-";
-  var label=(String(tipo||"OFC").toUpperCase()==="AMM")?"AMM":"OFC";
-  // già formattato S ... OFC/AMM
-  if(/^S\s+.+\s+(OFC|AMM)$/i.test(raw)){
-    var num=raw.replace(/^S\s+/i,"").replace(/\s*(OFC|AMM)$/i,"").trim();
-    return "S "+num+" "+label;
-  }
+  // se già formato "S ... OFC"
+  if(/^S\s+.+\s+OFC$/i.test(raw))return raw;
   var v=stripLeadingLabel(raw,["S"]);
-  v=v.replace(/\s*(OFC\/AMM|OFC|AMM)\s*$/i,"").trim();
+  v=v.replace(/\s*OFC\s*$/i,"").trim();
   if(!v)return "-";
-  return "S "+v+" "+label;
+  return "S "+v+" OFC";
 }
 function fmtCommConLista(con){
   var raw=String(con||"").trim();
-  if(!raw){
-    return '<span style="display:inline-block;background:#fef3c7;color:#b45309;font-weight:700;font-size:.72rem;padding:.2rem .5rem;border-radius:.35rem;border:1px solid #fcd34d">IN ATTESA DI ORDINE</span>';
-  }
+  if(!raw)return "-";
   if(/^R\s+.+\s+CON$/i.test(raw))return raw;
   var v=stripLeadingLabel(raw,["R"]);
   v=v.replace(/\s*CON\s*$/i,"").trim();
-  if(!v){
-    return '<span style="display:inline-block;background:#fef3c7;color:#b45309;font-weight:700;font-size:.72rem;padding:.2rem .5rem;border-radius:.35rem;border:1px solid #fcd34d">IN ATTESA DI ORDINE</span>';
-  }
+  if(!v)return "-";
   return "R "+v+" CON";
 }
+
+
 function isBackOfficerRole(role){
   var r=normalizeRole(role);
   // esclusi solo Back Officer (non Super admin né Tecnici)
@@ -1959,48 +1925,6 @@ function fmtCommResponsabile(c){
   if(!c)return "-";
   var v=c.responsabile_commessa||c.responsabile||"";
   return v||"—";
-}
-
-
-function onCommClienteChange(){
-  var cid=document.getElementById("commCliente").value;
-  var ns=document.getElementById("commSede");
-  if(!ns)return;
-  ns.innerHTML='<option value="">Tutte / non specificata</option>';
-  if(!cid){fillCommDpcList();return;}
-  var sedi={};
-  (equipment||[]).filter(function(e){return e.clienteId===cid;}).forEach(function(e){
-    var se=(e.sede||"").trim();if(se)sedi[se]=1;
-  });
-  Object.keys(sedi).sort(function(a,b){return a.localeCompare(b,"it",{sensitivity:"base"});}).forEach(function(se){
-    ns.innerHTML+='<option value="'+se.replace(/"/g,"&quot;")+'">'+se+'</option>';
-  });
-  fillCommDpcList();
-}
-function onCommSedeChange(){fillCommDpcList();}
-function fillCommDpcList(selectedIds){
-  var box=document.getElementById("commDpcList");
-  if(!box)return;
-  var cid=document.getElementById("commCliente").value;
-  var sede=(document.getElementById("commSede")&&document.getElementById("commSede").value)||"";
-  selectedIds=selectedIds||[];
-  if(!cid){box.innerHTML='<span style="color:#94a3b8">Seleziona prima un cliente</span>';return;}
-  var list=(equipment||[]).filter(function(e){
-    if(e.clienteId!==cid)return false;
-    if(sede&&(e.sede||"").trim()!==sede)return false;
-    return true;
-  });
-  if(!list.length){box.innerHTML='<span style="color:#94a3b8">Nessun DPC per questo cliente/sede</span>';return;}
-  var h='';
-  list.forEach(function(e){
-    var ck=selectedIds.indexOf(e.id)>=0?" checked":"";
-    var idLab=e.idDispositivo||e.id_dispositivo||"";
-    h+='<label style="display:flex;align-items:flex-start;gap:.4rem;padding:.25rem 0;cursor:pointer"><input type="checkbox" class="comm-dpc-cb" value="'+e.id+'"'+ck+' style="margin-top:.2rem"> <span><strong>'+(e.acronimo||"")+'</strong> · Matr. '+(e.matricola||"-")+(idLab?(" · ID "+idLab):"")+" · "+(e.sede||"-")+'</span></label>';
-  });
-  box.innerHTML=h;
-}
-function getCommDpcSelected(){
-  return Array.from(document.querySelectorAll(".comm-dpc-cb:checked")).map(function(cb){return cb.value;});
 }
 
 function onCommProtocolloInput(){
@@ -2033,8 +1957,6 @@ function openCommessaModal(id){
     var prot=document.getElementById("commProtocollo");if(prot)prot.value="";
     document.getElementById("commNumero").value=nextCommessaNumero();
     document.getElementById("commCliente").value="";
-    var cs=document.getElementById("commSede");if(cs)cs.innerHTML='<option value="">Tutte / non specificata</option>';
-    fillCommDpcList([]);
     document.getElementById("commDurata").value="12";
     document.getElementById("commNInt").value="1";
     document.getElementById("commCadenza").value="12";
@@ -2045,7 +1967,6 @@ function openCommessaModal(id){
     var cr=document.getElementById("commCreatoDa");if(cr){cr.value=currentUser?(currentUser.username||currentUser.nome||""):"";cr.readOnly=!isSuper();}
     document.getElementById("commRoe").value="";
     document.getElementById("commOfc").value="";
-    var ot=document.getElementById("commOfcTipo");if(ot)ot.value="OFC";
     document.getElementById("commCon").value="";
     document.getElementById("commDataInizio").value=new Date().toISOString().slice(0,10);
     document.getElementById("commNote").value="";
@@ -2078,13 +1999,6 @@ function editCommessa(id){
   document.getElementById("commNumero").value=c.numero||"";
   var prot=document.getElementById("commProtocollo");if(prot)prot.value=c.id_roe||"";
   document.getElementById("commCliente").value=c.cliente_id||"";
-  onCommClienteChange();
-  var cs=document.getElementById("commSede");
-  if(cs&&c.sede)cs.value=c.sede;
-  var dpcIds=c.equip_ids||c.dpc_ids||[];
-  if(typeof dpcIds==="string"){try{dpcIds=JSON.parse(dpcIds);}catch(e){dpcIds=[];}}
-  if(!Array.isArray(dpcIds))dpcIds=[];
-  fillCommDpcList(dpcIds);
   // durata/cadenza: preferisci mesi (nuovi campi), fallback da giorni legacy
   var durM=c.durata_mesi!=null?c.durata_mesi:(c.durata_giorni!=null?Math.max(1,Math.round(c.durata_giorni/30)):12);
   var cadM=c.cadenza_mesi!=null?c.cadenza_mesi:(c.cadenza_giorni!=null?Math.max(1,Math.round(c.cadenza_giorni/30)):"");
@@ -2097,7 +2011,6 @@ function editCommessa(id){
   fillCommResponsabileSelect(c.responsabile_commessa||c.responsabile||"");
   document.getElementById("commRoe").value=c.id_roe||"";
   document.getElementById("commOfc").value=c.id_ofc||"";
-  var ot=document.getElementById("commOfcTipo");if(ot)ot.value=(c.ofc_tipo||c.protocollo_ofc_tipo||"OFC");
   document.getElementById("commCon").value=c.id_con||"";
   document.getElementById("commDataInizio").value=c.data_inizio||"";
   document.getElementById("commNote").value=c.note||"";
@@ -2128,7 +2041,8 @@ async function saveCommessa(){
   var ofc=(document.getElementById("commOfc").value||"").trim();
   var con=(document.getElementById("commCon").value||"").trim();
   if(!protocollo){alert("Inserisci il N° PROTOCOLLO ROE — è il primo dato richiesto.");var el=document.getElementById("commProtocollo");if(el)el.focus();return;}
-  if(!ofc){alert("Inserisci il N° PROTOCOLLO (OFC o AMM).");var el=document.getElementById("commOfc");if(el)el.focus();return;}
+  if(!ofc){alert("Inserisci il N° PROTOCOLLO OFC.");var el=document.getElementById("commOfc");if(el)el.focus();return;}
+  if(!con){alert("Inserisci il N° PROTOCOLLO CON.");var el=document.getElementById("commCon");if(el)el.focus();return;}
   if(!numero||!cliente_id||!durata||!nInt||!tipi.length){alert("Compila Protocollo/Numero, Cliente, Durata (mesi), N° interventi e almeno un Tipo intervento");return;}
   var cad=Math.round(durata/nInt);
   if(cad<1)cad=1;
@@ -2146,13 +2060,10 @@ async function saveCommessa(){
     referente_contatto:(document.getElementById("commRefContatto").value||"").trim()||null,
     id_roe:roe||null,
     id_ofc:(document.getElementById("commOfc").value||"").trim()||null,
-    ofc_tipo:(document.getElementById("commOfcTipo")&&document.getElementById("commOfcTipo").value)||"OFC",
     id_con:(document.getElementById("commCon").value||"").trim()||null,
     data_inizio:document.getElementById("commDataInizio").value||null,
     note:(document.getElementById("commNote").value||"").trim()||null,
     responsabile_commessa:(document.getElementById("commResponsabile")&&document.getElementById("commResponsabile").value||"").trim()||null,
-    sede:(document.getElementById("commSede")&&document.getElementById("commSede").value||"").trim()||null,
-    equip_ids:getCommDpcSelected(),
     updated_at:new Date().toISOString()
   };
   // username: obbligatorio in creazione; solo super admin può cambiarlo in modifica
@@ -4275,61 +4186,32 @@ function fillNiCommessaSelect(clienteId, selected){
 function onNiCommessaChange(){
   var id=(document.getElementById("niCommessa")&&document.getElementById("niCommessa").value)||"";
   var c=(commesse||[]).find(function(x){return x.id===id;});
-  var cliSel=document.getElementById("niCliente");
-  var tipoEl=document.getElementById("niTipo");
+  var hid=document.getElementById("niCliente");
+  var nome=document.getElementById("niClienteNome");
   if(!c){
-    if(cliSel)cliSel.value="";
-    if(tipoEl)tipoEl.value="";
+    if(hid)hid.value="";
+    if(nome)nome.value="";
+    var tipoEl0=document.getElementById("niTipo");if(tipoEl0)tipoEl0.value="";
+    // reset sede/dpc
     var ns=document.getElementById("niSede");
     if(ns){ns.innerHTML='<option value="">Seleziona sede...</option>';ns.disabled=true;}
     fillNiDpc();
     return;
   }
-  // cliente
-  if(cliSel){
-    // ensure option exists
-    var found=false;
-    for(var i=0;i<cliSel.options.length;i++){if(cliSel.options[i].value===c.cliente_id){found=true;break;}}
-    if(!found&&c.cliente_id){
-      var o=document.createElement("option");o.value=c.cliente_id;o.textContent=clienteName(c.cliente_id);cliSel.appendChild(o);
-    }
-    cliSel.value=c.cliente_id||"";
-  }
-  // tipo: se multipli, usa il primo e lascia editabile
+  if(hid)hid.value=c.cliente_id||"";
+  if(nome)nome.value=clienteName(c.cliente_id)||"";
+  // tipo intervento dalla commessa
+  var tipoEl=document.getElementById("niTipo");
   if(tipoEl){
     var t=c.tipo_interventi||c.tipo_intervento||"";
-    if(Array.isArray(t))t=t[0]||"";
+    if(Array.isArray(t))t=t.join(", ");
     else if(typeof t==="string"){
-      try{var p=JSON.parse(t);if(Array.isArray(p))t=p[0]||"";else t=String(t).split(",")[0].trim();}catch(e){t=String(t).split(",")[0].trim();}
+      try{var p=JSON.parse(t);if(Array.isArray(p))t=p.join(", ");}catch(e){}
     }
     tipoEl.value=t||"";
   }
+  // aggiorna sede e dpc come se fosse scelto il cliente
   onNiClienteChange();
-  // sede da commessa
-  var ns=document.getElementById("niSede");
-  if(ns&&c.sede){
-    // ensure option
-    var has=false;
-    for(var j=0;j<ns.options.length;j++){if(ns.options[j].value===c.sede){has=true;break;}}
-    if(!has){var o2=document.createElement("option");o2.value=c.sede;o2.textContent=c.sede;ns.appendChild(o2);}
-    ns.value=c.sede;
-    ns.disabled=false;
-  }
-  fillNiDpc();
-  // pre-check DPC della commessa
-  setTimeout(function(){
-    var dpcIds=c.equip_ids||c.dpc_ids||[];
-    if(typeof dpcIds==="string"){try{dpcIds=JSON.parse(dpcIds);}catch(e){dpcIds=[];}}
-    if(!Array.isArray(dpcIds))dpcIds=[];
-    document.querySelectorAll(".ni-dpc-cb, #niDpcList input[type=checkbox]").forEach(function(cb){
-      if(dpcIds.indexOf(cb.value)>=0||dpcIds.indexOf(cb.getAttribute("data-id"))>=0)cb.checked=true;
-    });
-    try{updateNiDpcCount&&updateNiDpcCount();}catch(e){}
-    try{
-      var cnt=document.getElementById("niDpcCount");
-      if(cnt){var n=document.querySelectorAll("#niDpcList input[type=checkbox]:checked").length;cnt.textContent="("+n+" selezionati)";}
-    }catch(e){}
-  },80);
 }
 async function openInterventiByCommessa(commId, numero){
   if(!commId)return;
@@ -4356,14 +4238,8 @@ async function openNuovoInterventoModal(){
   var ca=document.getElementById("niConflictAlert");if(ca){ca.style.display="none";ca.innerHTML="";}
   var ns=document.getElementById("niSede");
   if(ns){ns.innerHTML='<option value="">Seleziona sede...</option>';ns.disabled=true;}
-  // fill clienti select
-  var sc=document.getElementById("niCliente");
-  if(sc){
-    sc.innerHTML='<option value="">Seleziona...</option>';
-    var list=clienti||[];
-    if(isTecnico()){var ids=userClienteIds();list=list.filter(function(c){return ids.indexOf(c.id)>-1;});}
-    list.forEach(function(c){sc.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});
-  }
+  var hid=document.getElementById("niCliente");if(hid)hid.value="";
+  var nome=document.getElementById("niClienteNome");if(nome)nome.value="";
   fillNiCommessaSelect("","");
   fillNiDpc();
   document.getElementById("nuovoInterventoModal").classList.add("show");
