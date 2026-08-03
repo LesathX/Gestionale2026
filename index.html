@@ -442,7 +442,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
   <div id="pageCommesse" class="page-panel">
     <div class="stats" id="commesseStats"></div>
     <div class="filters"><div class="filters-inner">
-      <div class="search-wrap"><i class="fas fa-search"></i><input id="commesseSearch" placeholder="Cerca commessa, cliente, ROE, OFC, CON..." oninput="renderCommesse()"></div>
+      <div class="search-wrap"><i class="fas fa-search"></i><input id="commesseSearch" placeholder="Cerca commessa, cliente, ROE, N° PROTOCOLLO OFC, NUMERO PROTOCOLLO CON..." oninput="renderCommesse()"></div>
       <select id="commesseFilterStato" onchange="renderCommesse()">
         <option value="aperte">Aperte</option>
         <option value="chiuse">Chiuse</option>
@@ -463,8 +463,8 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
             <th>Tipo intervento</th>
             <th>Referente cliente</th>
             <th>ID ROE</th>
-            <th>ID OFC</th>
-            <th>ID CON</th>
+            <th>N° PROTOCOLLO OFC</th>
+            <th>NUMERO PROTOCOLLO CON</th>
             <th>Stato</th>
             <th>Azioni</th>
           </tr></thead>
@@ -831,7 +831,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
 <div id="commessaModal" class="modal-overlay"><div class="modal" style="max-width:720px">
   <div class="modal-header"><h2 id="commessaModalTitle">Nuova commessa</h2><button class="modal-close" onclick="closeCommessaModal()">&times;</button></div>
   <div class="modal-body">
-    <p class="device-info"><strong>Primo passo obbligatorio:</strong> numero protocollo (ROE), ID OFC e ID CON. Il protocollo coincide con l’ID ROE e con il numero commessa.</p>
+    <p class="device-info"><strong>Primo passo obbligatorio:</strong> protocollo (ROE), N° PROTOCOLLO OFC e NUMERO PROTOCOLLO CON. Il <strong>numero commessa</strong> è progressivo automatico (modificabile).</p>
     <input type="hidden" id="commEditId">
     <div class="form-grid" style="grid-template-columns:1fr 1fr">
       <div class="form-group full" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:.5rem;padding:.75rem;grid-column:1/-1">
@@ -842,17 +842,17 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
             <input id="commProtocollo" placeholder="es. ROE-2026-0142" autocomplete="off" oninput="onCommProtocolloInput()">
           </div>
           <div class="form-group" style="margin:0">
-            <label style="color:#1e40af;font-weight:600">ID OFC *</label>
-            <input id="commOfc" placeholder="Offerta CAMI">
+            <label style="color:#1e40af;font-weight:600">N° PROTOCOLLO OFC *</label>
+            <input id="commOfc" placeholder="es. OFC-2026-001">
           </div>
           <div class="form-group" style="margin:0">
-            <label style="color:#1e40af;font-weight:600">ID CON *</label>
-            <input id="commCon" placeholder="Contratto">
+            <label style="color:#1e40af;font-weight:600">NUMERO PROTOCOLLO CON *</label>
+            <input id="commCon" placeholder="es. CON-2026-001">
           </div>
         </div>
-        <small class="hint" style="display:block;margin-top:.4rem;color:#64748b">Il protocollo viene copiato su ID ROE e Numero commessa.</small>
+        <small class="hint" style="display:block;margin-top:.4rem;color:#64748b">Il protocollo viene copiato sull’ID ROE. Il numero commessa è progressivo e indipendente.</small>
       </div>
-      <div class="form-group"><label>Numero commessa *</label><input id="commNumero" placeholder="auto da protocollo"></div>
+      <div class="form-group"><label>Numero commessa * <small style="font-weight:400;color:#64748b">(progressivo, modificabile)</small></label><input id="commNumero" placeholder="auto progressivo"></div>
       <div class="form-group" style="display:none"><label>ID ROE</label><input id="commRoe" placeholder="= protocollo"></div>
       <div class="form-group"><label>Cliente *</label>
         <div style="display:flex;gap:.35rem;align-items:center">
@@ -1832,10 +1832,25 @@ function renderCommesse(){
 }
 function onCommProtocolloInput(){
   var p=(document.getElementById("commProtocollo").value||"").trim();
-  var num=document.getElementById("commNumero");
   var roe=document.getElementById("commRoe");
-  if(num)num.value=p;
   if(roe)roe.value=p;
+}
+function nextCommessaNumero(){
+  var maxN=0;
+  (commesse||[]).forEach(function(c){
+    var raw=String(c.numero||"").trim();
+    // accetta 12, 0012, C-12, COMM-12
+    var m=raw.match(/^(?:C(?:OMM)?[\-_\s]?)?(\d+)$/i);
+    if(m){
+      var n=parseInt(m[1],10);
+      if(n>maxN)maxN=n;
+    }else if(/^\d+$/.test(raw)){
+      var n2=parseInt(raw,10);
+      if(n2>maxN)maxN=n2;
+    }
+  });
+  var next=maxN+1;
+  return String(next).padStart(4,"0");
 }
 function openCommessaModal(id){
   fillCommesseClienteFilters();
@@ -1843,7 +1858,7 @@ function openCommessaModal(id){
   document.getElementById("commessaModalTitle").textContent=id?"Modifica commessa":"Nuova commessa";
   if(!id){
     var prot=document.getElementById("commProtocollo");if(prot)prot.value="";
-    document.getElementById("commNumero").value="";
+    document.getElementById("commNumero").value=nextCommessaNumero();
     document.getElementById("commCliente").value="";
     document.getElementById("commDurata").value="12";
     document.getElementById("commNInt").value="1";
@@ -1872,7 +1887,7 @@ function editCommessa(id){
   if(!c)return;
   openCommessaModal(id);
   document.getElementById("commNumero").value=c.numero||"";
-  var prot=document.getElementById("commProtocollo");if(prot)prot.value=c.id_roe||c.numero||"";
+  var prot=document.getElementById("commProtocollo");if(prot)prot.value=c.id_roe||"";
   document.getElementById("commCliente").value=c.cliente_id||"";
   // durata/cadenza: preferisci mesi (nuovi campi), fallback da giorni legacy
   var durM=c.durata_mesi!=null?c.durata_mesi:(c.durata_giorni!=null?Math.max(1,Math.round(c.durata_giorni/30)):12);
@@ -1895,18 +1910,16 @@ async function saveCommessa(){
   var protocollo=(document.getElementById("commProtocollo")&&document.getElementById("commProtocollo").value||"").trim();
   var numero=(document.getElementById("commNumero").value||"").trim();
   var roe=(document.getElementById("commRoe").value||"").trim();
-  // Protocollo = ROE: se manca uno, allinea
+  // Protocollo = solo ROE (numero commessa resta indipendente / progressivo)
   if(protocollo){
-    if(!numero)numero=protocollo;
     if(!roe)roe=protocollo;
-    document.getElementById("commNumero").value=numero;
-    document.getElementById("commRoe").value=roe;
+    if(document.getElementById("commRoe"))document.getElementById("commRoe").value=roe;
   }else if(roe&&!protocollo){
     protocollo=roe;
-    if(!numero)numero=roe;
-  }else if(numero&&!protocollo){
-    protocollo=numero;
-    if(!roe)roe=numero;
+  }
+  if(!numero){
+    numero=nextCommessaNumero();
+    document.getElementById("commNumero").value=numero;
   }
   var cliente_id=document.getElementById("commCliente").value;
   var durata=parseInt(document.getElementById("commDurata").value,10);
@@ -1915,8 +1928,8 @@ async function saveCommessa(){
   var ofc=(document.getElementById("commOfc").value||"").trim();
   var con=(document.getElementById("commCon").value||"").trim();
   if(!protocollo){alert("Inserisci il Numero protocollo (ROE) — è il primo dato richiesto.");var el=document.getElementById("commProtocollo");if(el)el.focus();return;}
-  if(!ofc){alert("Inserisci l'ID OFC (Offerta CAMI).");var el=document.getElementById("commOfc");if(el)el.focus();return;}
-  if(!con){alert("Inserisci l'ID CON (Contratto).");var el=document.getElementById("commCon");if(el)el.focus();return;}
+  if(!ofc){alert("Inserisci il N° PROTOCOLLO OFC.");var el=document.getElementById("commOfc");if(el)el.focus();return;}
+  if(!con){alert("Inserisci il NUMERO PROTOCOLLO CON.");var el=document.getElementById("commCon");if(el)el.focus();return;}
   if(!numero||!cliente_id||!durata||!nInt||!tipi.length){alert("Compila Protocollo/Numero, Cliente, Durata (mesi), N° interventi e almeno un Tipo intervento");return;}
   var cad=Math.round(durata/nInt);
   if(cad<1)cad=1;
