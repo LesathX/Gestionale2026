@@ -995,6 +995,45 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
   </div>
 </div></div>
 
+
+<div id="assiFattoModal" class="modal-overlay"><div class="modal" style="max-width:480px">
+  <div class="modal-header"><h2>Chiudi intervento</h2><button class="modal-close" onclick="closeAssiFattoModal()">&times;</button></div>
+  <div class="modal-body">
+    <input type="hidden" id="assiFattoId">
+    <p class="device-info" id="assiFattoInfo">Vuoi allegare documenti a questo intervento?</p>
+    <div id="assiFattoStep1">
+      <p style="margin:.5rem 0 1rem;color:#475569;font-size:.9rem">Se scegli <strong>No</strong>, l&apos;intervento passa subito a <strong>COMPLETATO</strong>.<br>Se scegli <strong>Sì</strong>, dovrai indicare il tipo e caricare almeno un allegato prima della chiusura.</p>
+      <div class="form-actions" style="justify-content:flex-start;gap:.5rem;flex-wrap:wrap">
+        <button type="button" class="btn btn-save" onclick="assiFattoScelta(true)"><i class="fas fa-paperclip"></i> Sì, allega documenti</button>
+        <button type="button" class="btn btn-secondary" onclick="assiFattoScelta(false)"><i class="fas fa-check"></i> No, completa senza allegati</button>
+        <button type="button" class="btn-cancel" onclick="closeAssiFattoModal()">Annulla</button>
+      </div>
+    </div>
+    <div id="assiFattoStep2" style="display:none">
+      <div class="form-group"><label>Tipo documento *</label>
+        <select id="assiDocTipo">
+          <option value="">Seleziona...</option>
+          <option value="RIT">RIT</option>
+          <option value="DDT">DDT</option>
+          <option value="CERTIFICATO FILTRI">CERTIFICATO FILTRI</option>
+          <option value="ALTRO">ALTRO</option>
+        </select>
+      </div>
+      <div class="form-group"><label>File allegato *</label>
+        <input type="file" id="assiDocFile" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,image/*,application/pdf">
+        <small class="hint">Obbligatorio per chiudere con allegato</small>
+      </div>
+      <div class="form-group"><label>Note documento (opz.)</label>
+        <input id="assiDocNote" placeholder="riferimento, numero, ecc.">
+      </div>
+      <div class="form-actions" style="justify-content:flex-start;gap:.5rem;flex-wrap:wrap">
+        <button type="button" class="btn btn-save" onclick="assiFattoConAllegato()"><i class="fas fa-check"></i> Carica e completa</button>
+        <button type="button" class="btn-cancel" onclick="assiFattoBackStep1()">Indietro</button>
+      </div>
+    </div>
+  </div>
+</div></div>
+
 <div id="nuovoInterventoModal" class="modal-overlay"><div class="modal" style="max-width:720px">
   <div class="modal-header"><h2>Nuovo intervento</h2><button class="modal-close" onclick="closeNuovoInterventoModal()">&times;</button></div>
   <div class="modal-body">
@@ -4827,7 +4866,7 @@ async function renderInterventiAssegnati(){
     var overdue=a.data&&daysUntil(a.data)!==null&&daysUntil(a.data)<0&&!a.done;
     h+='<div class="oggi-item '+(a.done?"":(overdue?"overdue":"soon"))+'">';
     h+='<div><strong>'+(a.acronimo||"")+' · '+(a.matricola||"")+'</strong> · '+clienteName(a.cliente_id);
-    h+='<div class="oggi-meta">'+fmt(a.data)+' · '+(a.tipo||"")+' · Tecnico: <strong>'+(a.tecnico||"-")+'</strong> · '+(a.sede||"")+(a.note?" · "+a.note:"")+(a.done?" · <span class=\"badge badge-green\">COMPLETATO</span>":" · <span class=\"badge badge-amber\">APERTO</span>")+'</div></div>';
+    h+='<div class="oggi-meta">'+fmt(a.data)+' · '+(a.tipo||"")+' · Tecnico: <strong>'+(a.tecnico||"-")+'</strong> · '+(a.sede||"")+(a.note?" · "+a.note:"")+(a.done?(" · <span class=\"badge badge-green\">COMPLETATO</span>"+(a.allegato_tipo?(" · <span class=\"badge badge-blue\">"+a.allegato_tipo+"</span>"):"")):" · <span class=\"badge badge-amber\">APERTO</span>")+'</div></div>';
     h+='<div style="display:flex;gap:.3rem;flex-wrap:wrap">';
     if(!a.done){
       h+='<button class="btn btn-primary" style="padding:.25rem .5rem" onclick="toggleAssi(\''+a.id+'\')">Fatto</button>';
@@ -5118,35 +5157,134 @@ async function toggleAssi(id){
   if(!a){alert("Assegnazione non trovata");return;}
   if(a.done){
     if(!(isSuper()||isBackOfficer())){alert("Solo Super admin o Back Officer possono riaprire");return;}
-    var res=await sb.from("assegnazioni").update({done:false}).eq("id",id);
-    if(res.error){alert(res.error.message);return;}
+    var res=await sb.from("assegnazioni").update({done:false,allegato_tipo:null,allegato_url:null,chiuso_con_allegato:null}).eq("id",id);
+    if(res.error){
+      res=await sb.from("assegnazioni").update({done:false}).eq("id",id);
+      if(res.error){alert(res.error.message);return;}
+    }
     toast("Intervento riaperto");
     await renderAssegnazioni();
     try{await renderInterventiAssegnati();}catch(e){}
     return;
   }
   var ids=parseAssiEquipIds(a);
-  if(!ids.length){alert("Nessun DPC collegato");return;}
-  var res=await sb.from("assegnazioni").update({done:true}).eq("id",id);
-  if(res.error){alert(res.error.message);return;}
-  pendingAssiId=id;
-  window._pendingAssiEquipQueue=ids.slice(1);
+  if(!ids.length){alert("Nessun DPC collegato a questo intervento");return;}
+  // NON chiudere subito: apri popup allegati
+  openAssiFattoModal(a);
+}
+
+function openAssiFattoModal(a){
+  window._assiFattoCurrent=a;
+  document.getElementById("assiFattoId").value=a.id;
+  var info=document.getElementById("assiFattoInfo");
+  if(info){
+    info.innerHTML='<strong>'+(a.acronimo||"")+' · '+(a.matricola||"")+'</strong> · '+clienteName(a.cliente_id)+
+      '<br><span style="color:#64748b;font-size:.85rem">'+fmt(a.data)+' · '+(a.tipo||"")+' · Tecnico: '+(a.tecnico||"-")+'</span>'+
+      '<br><br>Vuoi allegare documenti a questo intervento prima di segnarlo <strong>COMPLETATO</strong>?';
+  }
+  document.getElementById("assiFattoStep1").style.display="block";
+  document.getElementById("assiFattoStep2").style.display="none";
+  var ft=document.getElementById("assiDocTipo");if(ft)ft.value="";
+  var ff=document.getElementById("assiDocFile");if(ff)ff.value="";
+  var fn=document.getElementById("assiDocNote");if(fn)fn.value="";
+  document.getElementById("assiFattoModal").classList.add("show");
+}
+function closeAssiFattoModal(){
+  document.getElementById("assiFattoModal").classList.remove("show");
+  window._assiFattoCurrent=null;
+}
+function assiFattoBackStep1(){
+  document.getElementById("assiFattoStep1").style.display="block";
+  document.getElementById("assiFattoStep2").style.display="none";
+}
+async function assiFattoScelta(conAllegati){
+  var a=window._assiFattoCurrent;
+  if(!a){closeAssiFattoModal();return;}
+  if(!conAllegati){
+    // NO allegati → completa subito
+    if(!confirm("Confermi di chiudere l'intervento SENZA allegati?\nStato: COMPLETATO"))return;
+    var res=await sb.from("assegnazioni").update({
+      done:true,
+      chiuso_con_allegato:false,
+      chiuso_at:new Date().toISOString()
+    }).eq("id",a.id);
+    if(res.error){
+      // fallback colonne mancanti
+      res=await sb.from("assegnazioni").update({done:true}).eq("id",a.id);
+      if(res.error){alert(res.error.message);return;}
+    }
+    closeAssiFattoModal();
+    toast("Intervento COMPLETATO (senza allegati)");
+    await renderAssegnazioni();
+    try{await renderInterventiAssegnati();}catch(e){}
+    return;
+  }
+  // SÌ → step tipo documento + upload
+  document.getElementById("assiFattoStep1").style.display="none";
+  document.getElementById("assiFattoStep2").style.display="block";
+}
+async function assiFattoConAllegato(){
+  var a=window._assiFattoCurrent;
+  if(!a){closeAssiFattoModal();return;}
+  var tipo=(document.getElementById("assiDocTipo").value||"").trim();
+  var fileEl=document.getElementById("assiDocFile");
+  var file=fileEl&&fileEl.files&&fileEl.files[0]?fileEl.files[0]:null;
+  var note=(document.getElementById("assiDocNote").value||"").trim();
+  if(!tipo){alert("Seleziona il tipo documento (RIT, DDT, CERTIFICATO FILTRI o ALTRO)");return;}
+  if(!file){alert("Carica il file allegato per poter completare l'intervento");return;}
+  var url="",path="";
+  try{
+    path="assi/"+a.id+"/"+Date.now()+"_"+safeName(file.name);
+    var up=await sb.storage.from("manutenzioni").upload(path,file);
+    if(up.error){
+      // prova bucket alternativo
+      up=await sb.storage.from("allegati").upload(path,file);
+      if(up.error){alert(storageErrorMsg?storageErrorMsg(up.error,"manutenzioni/allegati"):up.error.message);return;}
+      url=sb.storage.from("allegati").getPublicUrl(path).data.publicUrl;
+    }else{
+      url=sb.storage.from("manutenzioni").getPublicUrl(path).data.publicUrl;
+    }
+  }catch(err){
+    alert("Errore upload: "+(err.message||err));
+    return;
+  }
+  var patch={
+    done:true,
+    chiuso_con_allegato:true,
+    allegato_tipo:tipo,
+    allegato_url:url||null,
+    allegato_path:path||null,
+    allegato_note:note||null,
+    chiuso_at:new Date().toISOString()
+  };
+  var res=await sb.from("assegnazioni").update(patch).eq("id",a.id);
+  if(res.error){
+    // fallback minimo
+    var res2=await sb.from("assegnazioni").update({done:true}).eq("id",a.id);
+    if(res2.error){alert(res.error.message+"\n"+res2.error.message);return;}
+    toast("Completato (allegato non salvato su DB: esegui SQL colonne allegato)");
+  }else{
+    toast("Intervento COMPLETATO con allegato "+tipo);
+  }
+  // opzionale: registra anche nello storico del primo DPC
+  try{
+    var ids=parseAssiEquipIds(a);
+    if(ids.length){
+      await sb.from("manutenzioni").insert([{
+        equip_id:ids[0],
+        data:a.data||new Date().toISOString().slice(0,10),
+        tecnico:a.tecnico||(currentUser&&currentUser.nome)||"",
+        tipo_intervento:a.tipo||tipo,
+        note:("Chiusura intervento assegnato · Doc: "+tipo+(note?(" · "+note):"")),
+        allegato_url:url||"",
+        storage_path:path||"",
+        creato_da:currentUser?currentUser.username:""
+      }]);
+    }
+  }catch(ex){console.warn(ex);}
+  closeAssiFattoModal();
   await renderAssegnazioni();
   try{await renderInterventiAssegnati();}catch(e){}
-  try{
-    try{showDpcPage();}catch(e){}
-    document.getElementById("app").style.display="";
-    closeInterventiAssegnatiModal();
-  }catch(e){}
-  openHistory(ids[0],{
-    fromAssi:true,
-    data:a.data||new Date().toISOString().slice(0,10),
-    tecnico:a.tecnico||(currentUser&&currentUser.nome)||"",
-    tipo:a.tipo||"",
-    note:a.note||""
-  });
-  if(ids.length>1)toast("DPC 1/"+ids.length+" – dopo il salvataggio si apre il successivo");
-  else toast("Registra l'intervento nello storico per chiudere");
 }
 
 async function deleteAssi(id){
