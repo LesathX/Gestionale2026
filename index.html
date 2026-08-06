@@ -2041,7 +2041,7 @@ async function renderCommesse(){
     h+="<td>"+fmtCommConLista(c.id_con)+"</td>";
     h+="<td>"+(c.creato_da||c.username||"-")+"</td>";
     h+="<td>"+fmtCommResponsabile(c)+"</td>";
-    h+='<td><button type="button" class="btn btn-secondary" style="padding:.3rem .55rem;font-size:.75rem;font-weight:600" onclick="openInterventiByCommessa(\''+c.id+'\',\''+String(c.numero||"").replace(/'/g,"")+'\')" title="Tutti gli interventi di questa commessa"><i class="fas fa-clipboard-list"></i> '+countInterventiCommessa(c.id)+'</button></td>';
+    h+='<td><button type="button" class="btn btn-secondary" style="padding:.3rem .55rem;font-size:.75rem;font-weight:600" onclick="openInterventiByCommessa(\''+c.id+'\',\''+String(c.cliente_id||"").replace(/'/g,"")+'\')" title="Storico interventi del cliente"><i class="fas fa-clipboard-list"></i> '+countInterventiCommessa(c.id)+'</button></td>';
     h+="<td>"+badge;
     if(isSuper()||isBackOfficer()){
       var audit=[];
@@ -4669,6 +4669,33 @@ async function ensureAssiCache(){
   return _assiCacheForComm;
 }
 function invalidateAssiCache(){_assiCacheForComm=null;}
+
+function openInterventiByCommessa(commId, clienteId){
+  // apre lo storico interventi del cliente a cui fa capo la commessa
+  var cid=clienteId;
+  if(!cid&&commId){
+    var c=(commesse||[]).find(function(x){return x.id===commId;});
+    if(c)cid=c.cliente_id;
+  }
+  if(!cid){
+    alert("Cliente non trovato per questa commessa");
+    return;
+  }
+  try{
+    if(typeof openStoricoInterventiModal==="function"){
+      openStoricoInterventiModal(null, cid);
+      return;
+    }
+  }catch(e){console.error(e);}
+  try{
+    if(window.openStoricoInterventiModal){
+      window.openStoricoInterventiModal(null, cid);
+      return;
+    }
+  }catch(e2){}
+  alert("Modale storico non disponibile");
+}
+
 function countInterventiCommessa(commId){
   if(!commId)return 0;
   var list=_assiCacheForComm||[];
