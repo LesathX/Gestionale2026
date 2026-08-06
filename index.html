@@ -1001,7 +1001,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
 <div id="storicoInterventiModal" class="modal-overlay" style="z-index:200"><div class="modal modal-lg">
   <div class="modal-header"><h2>Storico Interventi</h2><button type="button" class="modal-close" onclick="closeStoricoInterventiModal()">&times;</button></div>
   <div class="modal-body">
-    <p class="device-info">Vista in sola lettura: interventi <strong>aperti</strong>, <strong>completati</strong> e <strong>archiviati</strong>.</p>
+    <p class="device-info">Vista in sola lettura degli interventi <strong>di questo cliente</strong> (aperti, completati, archiviati).</p>
     <div class="form-grid" style="grid-template-columns:1fr 1fr;max-width:560px;margin-bottom:.75rem">
       <div class="form-group"><label>Filtro stato</label>
         <select id="siFiltroStato" onchange="renderStoricoInterventi()">
@@ -4891,7 +4891,7 @@ async function renderInterventiAssegnati(){
     }else{
       h+='<button class="btn btn-secondary" style="padding:.25rem .5rem" onclick="toggleAssi(\''+a.id+'\')"><i class="fas fa-folder-open"></i> Riapri</button>';
     }
-    h+='<button type="button" class="btn btn-secondary" style="padding:.25rem .5rem" onclick="try{window.openStoricoInterventiModal&&window.openStoricoInterventiModal()}catch(e){alert(e.message||e)}"><i class="fas fa-history"></i> Storico Interventi</button>';
+    h+='<button type="button" class="btn btn-secondary" style="padding:.25rem .5rem" onclick="try{window.openStoricoInterventiModal&&window.openStoricoInterventiModal(null,\''+(a.cliente_id||'')+'\')}catch(e){alert(e.message||e)}"><i class="fas fa-history"></i> Storico Interventi</button>';
     if(isSuper()||isBackOfficer()||isTecnico()){
       h+='<button class="btn btn-danger" style="padding:.25rem .5rem" onclick="deleteAssi(\''+a.id+'\')"><i class="fas fa-trash"></i> Elimina</button>';
     }
@@ -5396,9 +5396,10 @@ function closeStoricoInterventiModal(){
   var m=document.getElementById("storicoInterventiModal");
   if(m)m.classList.remove("show");
 }
-async function openStoricoInterventiModal(focusId){
+async function openStoricoInterventiModal(focusId, clienteId){
   try{
     window._siFocusId=focusId||null;
+    window._siClienteId=clienteId||null;
     var m=document.getElementById("storicoInterventiModal");
     if(!m){
       alert("Modale Storico Interventi assente nel HTML. Aggiorna index.html e fai Ctrl+F5.");
@@ -5406,6 +5407,12 @@ async function openStoricoInterventiModal(focusId){
     }
     m.style.zIndex="200";
     m.classList.add("show");
+    // titolo con nome cliente
+    var tit=m.querySelector(".modal-header h2");
+    if(tit){
+      var cn=clienteId?clienteName(clienteId):"";
+      tit.innerHTML=cn?("Storico Interventi · "+cn):"Storico Interventi";
+    }
     var box=document.getElementById("siList");
     if(box)box.innerHTML="Caricamento...";
     await renderStoricoInterventi();
@@ -5432,8 +5439,11 @@ async function renderStoricoInterventi(){
   if(!Array.isArray(list))list=[];
   var fst=(document.getElementById("siFiltroStato")&&document.getElementById("siFiltroStato").value)||"";
   var q=((document.getElementById("siSearch")&&document.getElementById("siSearch").value)||"").toLowerCase().trim();
+  var onlyCli=window._siClienteId||null;
   list=list.filter(function(a){
     if(!a)return false;
+    // SOLO interventi del cliente selezionato
+    if(onlyCli&&a.cliente_id!==onlyCli)return false;
     var arch=!!(a.archived_at||a.deleted_at);
     if(fst==="open"&&(a.done||arch))return false;
     if(fst==="done"&&(!a.done||arch))return false;
