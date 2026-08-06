@@ -704,7 +704,14 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
         <datalist id="listStanza"></datalist>
       </div>
       <div class="form-group"><label>Stato</label><select id="stato"><option>OPERATIVA</option><option>IN PRODUZIONE</option><option>MANUTENZIONE</option><option>DA INSTALLARE</option><option>IN DISUSO</option><option>DISMESSA</option><option>NON DI COMPETENZA CAMI</option></select></div>
-      <div class="form-group"><label>Referente</label><input id="responsabile"></div>
+      <div class="form-group"><label>Referente</label>
+        <input id="responsabile" list="listReferente" onchange="cascadeReferente()" oninput="cascadeReferente()" placeholder="segue dipartimento (modificabile)">
+        <datalist id="listReferente"></datalist>
+      </div>
+      <div class="form-group"><label>Contatti referente</label>
+        <input id="referenteContatto" list="listReferenteContatto" placeholder="tel / email – segue referente">
+        <datalist id="listReferenteContatto"></datalist>
+      </div>
       <div class="form-group"><label>Cadenza</label><input id="cadenzaMan"></div>
       <div class="form-group full"><label>Tipo attivita</label><div class="check-group">
         <label class="check-option"><input type="checkbox" name="tipoAtt" value="Manutenzione ordinaria"> Manutenzione ordinaria</label>
@@ -1452,7 +1459,7 @@ function roleLabel(r){
 }
 function clienteName(id){var c=clienti.find(function(x){return x.id===id;});return c?c.nome:"-";}
 function clienteBadge(id){var colors=["#dbeafe","#dcfce7","#fce7f3","#fef3c7","#e0e7ff","#ffedd5","#f3e8ff","#ccfbf1"];var i=0;if(id){for(var k=0;k<id.length;k++)i=(i+id.charCodeAt(k))%colors.length;}return '<span class="badge" style="background:'+colors[i]+';color:#1e293b">'+clienteName(id)+'</span>';}
-function mapEquip(r){return{id:r.id,clienteId:r.cliente_id,acronimo:r.acronimo||"",costruttore:r.costruttore||"",modello:r.modello||"",matricola:r.matricola||"",idDispositivo:r.id_dispositivo||"",ultimaMan:r.ultima_man||"",prossimaMan:r.prossima_man||"",sede:r.sede||"",edificio:r.edificio||"",laboratorio:r.laboratorio||"",piano:r.piano||"",stanza:r.stanza||"",stato:r.stato||"",responsabile:r.responsabile||"",cadenzaMan:r.cadenza_man||"",tipoAttivita:r.tipo_attivita||[],haSistemaFiltrante:r.ha_sistema_filtrante||"no",stadiFiltranti:r.stadi_filtranti||"",accessori:r.accessori||"",note:r.note||"",filtriStadi:r.filtri_stadi||{},fotoUrl:r.foto_url||"",fotoPath:r.foto_path||"",ultimaCert:r.ultima_cert||"",prossimaCert:r.prossima_cert||"",indirizzo:r.indirizzo||"",dipartimento:r.dipartimento||"",geoLat:r.geo_lat||"",geoLng:r.geo_lng||""};}
+function mapEquip(r){return{id:r.id,clienteId:r.cliente_id,acronimo:r.acronimo||"",costruttore:r.costruttore||"",modello:r.modello||"",matricola:r.matricola||"",idDispositivo:r.id_dispositivo||"",ultimaMan:r.ultima_man||"",prossimaMan:r.prossima_man||"",sede:r.sede||"",edificio:r.edificio||"",laboratorio:r.laboratorio||"",piano:r.piano||"",stanza:r.stanza||"",stato:r.stato||"",responsabile:r.responsabile||"",cadenzaMan:r.cadenza_man||"",tipoAttivita:r.tipo_attivita||[],haSistemaFiltrante:r.ha_sistema_filtrante||"no",stadiFiltranti:r.stadi_filtranti||"",accessori:r.accessori||"",note:r.note||"",filtriStadi:r.filtri_stadi||{},fotoUrl:r.foto_url||"",fotoPath:r.foto_path||"",ultimaCert:r.ultima_cert||"",prossimaCert:r.prossima_cert||"",indirizzo:r.indirizzo||"",dipartimento:r.dipartimento||"",referenteContatto:r.referente_contatto||"",geoLat:r.geo_lat||"",geoLng:r.geo_lng||""};}
 function fmt(d){if(!d)return"-";var p=String(d).split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:d;}
 function daysUntil(d){if(!d)return null;var t=new Date(d),n=new Date();n.setHours(0,0,0,0);t.setHours(0,0,0,0);return Math.ceil((t-n)/86400000);}
 function isOverdue(d){var x=daysUntil(d);return x!==null&&x<0;}
@@ -1525,7 +1532,11 @@ document.addEventListener("click",function(e){
 
 
 
-/* ===== Cascata ubicazione / costruttore-modello ===== */
+/* ===== Cascata ubicazione / costruttore-modello / referente =====
+   CLIENTE → SEDE → DIPARTIMENTO → EDIFICIO → PIANO → LABORATORIO → STANZA
+   COSTRUTTORE → MODELLO
+   DIPARTIMENTO → REFERENTE → CONTATTI REFERENTE
+*/
 function uniqSorted(arr){
   var o={},out=[];
   (arr||[]).forEach(function(x){
@@ -1544,12 +1555,24 @@ function fillDatalist(id, values){
   uniqSorted(values).forEach(function(v){h+="<option value=\""+String(v).replace(/"/g,"&quot;")+"\">";});
   dl.innerHTML=h;
 }
+function clearIfNotIn(elId, allowed){
+  var el=document.getElementById(elId);
+  if(!el)return;
+  var v=String(el.value||"").trim();
+  if(!v)return;
+  var ok=(allowed||[]).some(function(a){return String(a||"").toLowerCase()===v.toLowerCase();});
+  if(!ok && allowed && allowed.length){
+    // non azzerare se l'utente digita un valore nuovo non ancora in elenco
+    // (consenti valori free-text)
+  }
+}
 function equipForCascade(){
   var cid=(document.getElementById("clienteId")||{}).value||"";
   var list=equipment||[];
   if(cid){
     var scoped=list.filter(function(e){return e.clienteId===cid;});
-    if(scoped.length)return scoped;
+    // anche se vuoto, resta scoped (solo quel cliente)
+    return scoped;
   }
   return list;
 }
@@ -1557,9 +1580,16 @@ function refreshCascadeRoot(){
   var list=equipForCascade();
   fillDatalist("listCostruttore", list.map(function(e){return e.costruttore;}));
   fillDatalist("listSede", list.map(function(e){return e.sede;}));
-  fillDatalist("listModello", list.map(function(e){return e.modello;}));
-  cascadeSede(true);
+  // se cliente ha sede in anagrafica, proponila
+  var cid=(document.getElementById("clienteId")||{}).value||"";
+  var cl=(clienti||[]).find(function(x){return x.id===cid;});
+  if(cl&&(cl.sede||cl.citta)){
+    var extra=list.map(function(e){return e.sede;});
+    if(cl.sede)extra.push(cl.sede);
+    fillDatalist("listSede", extra);
+  }
   cascadeCostruttore(true);
+  cascadeSede(true);
 }
 function cascadeCostruttore(keep){
   var c=(document.getElementById("costruttore")||{}).value||"";
@@ -1588,7 +1618,10 @@ function cascadeDipartimento(keep){
     return true;
   });
   fillDatalist("listEdificio", list.map(function(e){return e.edificio;}));
+  // referente segue dipartimento
+  fillDatalist("listReferente", list.map(function(e){return e.responsabile;}));
   cascadeEdificio(keep);
+  cascadeReferente(keep);
 }
 function cascadeEdificio(keep){
   var sede=(document.getElementById("sede")||{}).value||"";
@@ -1616,6 +1649,8 @@ function cascadePiano(keep){
     return true;
   });
   fillDatalist("listLaboratorio", list.map(function(e){return e.laboratorio;}));
+  // stanza segue anche direttamente dal piano
+  fillDatalist("listStanza", list.map(function(e){return e.stanza;}));
   cascadeLaboratorio(keep);
 }
 function cascadeLaboratorio(keep){
@@ -1633,6 +1668,39 @@ function cascadeLaboratorio(keep){
     return true;
   });
   fillDatalist("listStanza", list.map(function(e){return e.stanza;}));
+}
+function cascadeReferente(keep){
+  var sede=(document.getElementById("sede")||{}).value||"";
+  var dip=(document.getElementById("dipartimento")||{}).value||"";
+  var ref=(document.getElementById("responsabile")||{}).value||"";
+  var list=equipForCascade().filter(function(e){
+    if(sede&&String(e.sede||"").toLowerCase()!==sede.toLowerCase())return false;
+    if(dip&&String(e.dipartimento||"").toLowerCase()!==dip.toLowerCase())return false;
+    if(ref&&String(e.responsabile||"").toLowerCase()!==ref.toLowerCase())return false;
+    return true;
+  });
+  // contatti da note o campo dedicato se presente
+  var contatti=[];
+  list.forEach(function(e){
+    if(e.referenteContatto)contatti.push(e.referenteContatto);
+    if(e.referente_contatto)contatti.push(e.referente_contatto);
+  });
+  // anche da commesse stesso cliente/dip
+  var cid=(document.getElementById("clienteId")||{}).value||"";
+  (commesse||[]).forEach(function(c){
+    if(cid&&c.cliente_id!==cid)return;
+    if(ref&&c.referente_nome&&String(c.referente_nome).toLowerCase()===ref.toLowerCase()&&c.referente_contatto)
+      contatti.push(c.referente_contatto);
+    if(!ref&&c.referente_nome)fillDatalist("listReferente",
+      (equipForCascade().map(function(e){return e.responsabile;})).concat(
+        (commesse||[]).filter(function(x){return !cid||x.cliente_id===cid;}).map(function(x){return x.referente_nome;})
+      )
+    );
+  });
+  fillDatalist("listReferenteContatto", contatti);
+  // se un solo contatto e campo vuoto, suggerisci (non forzare)
+  var rc=document.getElementById("referenteContatto");
+  if(rc&&!rc.value&&contatti.length===1)rc.value=contatti[0];
 }
 
 /* ===== Dipartimento + quick cliente ===== */
@@ -1730,22 +1798,24 @@ function onClienteChangePrefillDip(){
   var c=(clienti||[]).find(function(x){return x.id===sel.value;});
   var d=document.getElementById("dipartimento");
   var sedeEl=document.getElementById("sede");
-  // Dipartimento dal cliente
-  if(d&&c&&c.dipartimento)d.value=c.dipartimento;
-  // Sede: più frequente tra i DPC del cliente, oppure unica sede nota
+  // SEDE dal cliente (anagrafica.sede) oppure più frequente sui DPC
   if(sedeEl){
-    var list=(equipment||[]).filter(function(e){return e.clienteId===sel.value&&e.sede;});
-    var counts={};
-    list.forEach(function(e){
-      var k=String(e.sede).trim();
-      if(!k)return;
-      counts[k]=(counts[k]||0)+1;
-    });
-    var best="",bestN=0;
-    Object.keys(counts).forEach(function(k){if(counts[k]>bestN){bestN=counts[k];best=k;}});
-    if(best)sedeEl.value=best;
-    else if(c&&c.citta&&!sedeEl.value)sedeEl.value=c.citta; // fallback città come sede
+    if(c&&c.sede)sedeEl.value=c.sede;
+    else{
+      var list=(equipment||[]).filter(function(e){return e.clienteId===sel.value&&e.sede;});
+      var counts={};
+      list.forEach(function(e){
+        var k=String(e.sede).trim();
+        if(!k)return;
+        counts[k]=(counts[k]||0)+1;
+      });
+      var best="",bestN=0;
+      Object.keys(counts).forEach(function(k){if(counts[k]>bestN){bestN=counts[k];best=k;}});
+      if(best)sedeEl.value=best;
+    }
   }
+  // DIPARTIMENTO dal cliente (modificabile)
+  if(d&&c&&c.dipartimento)d.value=c.dipartimento;
   try{refreshCascadeRoot();}catch(e){}
 }
 function nextClientCode(){
@@ -2095,6 +2165,34 @@ function fillCommClienteFattSelect(selected){
 
 function onCommClienteChange(){
   var cid=document.getElementById("commCliente").value;
+  // suggerisci referente/contatto da DPC/commesse dello stesso cliente
+  try{
+    var refs=[], cont=[];
+    (equipment||[]).filter(function(e){return e.clienteId===cid;}).forEach(function(e){
+      if(e.responsabile)refs.push(e.responsabile);
+      if(e.referenteContatto)cont.push(e.referenteContatto);
+    });
+    (commesse||[]).filter(function(c){return c.cliente_id===cid;}).forEach(function(c){
+      if(c.referente_nome)refs.push(c.referente_nome);
+      if(c.referente_contatto)cont.push(c.referente_contatto);
+    });
+    // datalist dinamici se presenti
+    var rn=document.getElementById("commRefNome");
+    if(rn){
+      rn.setAttribute("list","listCommRefNome");
+      var dl=document.getElementById("listCommRefNome");
+      if(!dl){dl=document.createElement("datalist");dl.id="listCommRefNome";document.body.appendChild(dl);}
+      fillDatalist("listCommRefNome", refs);
+    }
+    var rc=document.getElementById("commRefContatto");
+    if(rc){
+      rc.setAttribute("list","listCommRefContatto");
+      var dl2=document.getElementById("listCommRefContatto");
+      if(!dl2){dl2=document.createElement("datalist");dl2.id="listCommRefContatto";document.body.appendChild(dl2);}
+      fillDatalist("listCommRefContatto", cont);
+    }
+  }catch(e){}
+
   var ns=document.getElementById("commSede");
   if(!ns)return;
   ns.innerHTML='<option value="">Tutte / non specificata</option>';
@@ -2579,7 +2677,8 @@ if(sel){
     sel.disabled=false;sel.value="";
   }
 }
-if(id){var e=equipment.find(function(x){return x.id===id;});if(!e||!canEditAnagrafica(e.clienteId)){alert("Non autorizzato");closeModal();return;}document.getElementById("modalTitle").textContent="Modifica DPC";document.getElementById("editId").value=e.id;document.getElementById("clienteId").value=e.clienteId||"";if(isTecnico())sel.disabled=true;else if(!isSuper()&&!isBackOfficer())sel.disabled=true;document.getElementById("acronimo").value=e.acronimo;document.getElementById("costruttore").value=e.costruttore;document.getElementById("modello").value=e.modello;document.getElementById("matricola").value=e.matricola;document.getElementById("idDispositivo").value=e.idDispositivo;document.getElementById("ultimaMan").value=e.ultimaMan;document.getElementById("prossimaMan").value=e.prossimaMan;document.getElementById("sede").value=e.sede;var _dip=document.getElementById("dipartimento");if(_dip)_dip.value=e.dipartimento||"";document.getElementById("edificio").value=e.edificio;document.getElementById("laboratorio").value=e.laboratorio;document.getElementById("piano").value=e.piano;document.getElementById("stanza").value=e.stanza;document.getElementById("stato").value=e.stato||"OPERATIVA";document.getElementById("responsabile").value=e.responsabile;document.getElementById("cadenzaMan").value=e.cadenzaMan;document.getElementById("haSistemaFiltrante").value=e.haSistemaFiltrante||"no";document.getElementById("stadiFiltranti").value=String(parseNumStadi(e.stadiFiltranti)||"");document.getElementById("accessori").value=e.accessori;document.getElementById("note").value=e.note;setTipo(e.tipoAttivita||[]);fillFiltriStadi(e.filtriStadi||{});document.getElementById("fotoUrl").value=e.fotoUrl||"";document.getElementById("fotoPath").value=e.fotoPath||"";showFotoPreview(e.fotoUrl||"");}else {document.getElementById("modalTitle").textContent="Nuovo DPC";checkSoftBlock(null);}updateStadiVisibility();if(id){var ee=equipment.find(function(x){return x.id===id;});checkSoftBlock(ee);}else checkSoftBlock(null);}
+if(id){var e=equipment.find(function(x){return x.id===id;});if(!e||!canEditAnagrafica(e.clienteId)){alert("Non autorizzato");closeModal();return;}document.getElementById("modalTitle").textContent="Modifica DPC";document.getElementById("editId").value=e.id;document.getElementById("clienteId").value=e.clienteId||"";if(isTecnico())sel.disabled=true;else if(!isSuper()&&!isBackOfficer())sel.disabled=true;document.getElementById("acronimo").value=e.acronimo;document.getElementById("costruttore").value=e.costruttore;document.getElementById("modello").value=e.modello;document.getElementById("matricola").value=e.matricola;document.getElementById("idDispositivo").value=e.idDispositivo;document.getElementById("ultimaMan").value=e.ultimaMan;document.getElementById("prossimaMan").value=e.prossimaMan;document.getElementById("sede").value=e.sede;var _dip=document.getElementById("dipartimento");if(_dip)_dip.value=e.dipartimento||"";document.getElementById("edificio").value=e.edificio;document.getElementById("laboratorio").value=e.laboratorio;document.getElementById("piano").value=e.piano;document.getElementById("stanza").value=e.stanza;document.getElementById("stato").value=e.stato||"OPERATIVA";document.getElementById("responsabile").value=e.responsabile;
+  var rct=document.getElementById("referenteContatto");if(rct)rct.value=e.referenteContatto||"";document.getElementById("cadenzaMan").value=e.cadenzaMan;document.getElementById("haSistemaFiltrante").value=e.haSistemaFiltrante||"no";document.getElementById("stadiFiltranti").value=String(parseNumStadi(e.stadiFiltranti)||"");document.getElementById("accessori").value=e.accessori;document.getElementById("note").value=e.note;setTipo(e.tipoAttivita||[]);fillFiltriStadi(e.filtriStadi||{});document.getElementById("fotoUrl").value=e.fotoUrl||"";document.getElementById("fotoPath").value=e.fotoPath||"";showFotoPreview(e.fotoUrl||"");}else {document.getElementById("modalTitle").textContent="Nuovo DPC";checkSoftBlock(null);}updateStadiVisibility();if(id){var ee=equipment.find(function(x){return x.id===id;});checkSoftBlock(ee);}else checkSoftBlock(null);}
 function closeModal(){document.getElementById("modal").classList.remove("show");document.getElementById("clienteId").disabled=false;}
 function editEquipment(id){openModal(id);}
 async function saveEquipment(){var cliente_id=document.getElementById("clienteId").value;if(isTecnico()){var ids=userClienteIds();if(ids.length&&ids.indexOf(cliente_id)<0){alert("Puoi creare/modificare DPC solo sui clienti assegnati");return;}}if(!canEditAnagrafica(cliente_id)){alert("Non puoi modificare questo cliente");return;}var id=document.getElementById("editId").value;var acronimo=document.getElementById("acronimo").value,matricola=document.getElementById("matricola").value.trim(),idDispositivo=document.getElementById("idDispositivo").value.trim(),sede=document.getElementById("sede").value.trim();if(!cliente_id||!acronimo||!matricola||!idDispositivo||!sede){alert("Compila i campi obbligatori");return;}
@@ -2590,7 +2689,7 @@ async function saveEquipment(){var cliente_id=document.getElementById("clienteId
   var dupId=equipment.find(function(x){return x.clienteId===cliente_id&&x.id!==id&&String(x.idDispositivo||"").toLowerCase()===idDispositivo.toLowerCase()&&String(x.sede||"").toLowerCase()===sedeNorm;});
   if(dupId){alert("ID dispositivo gia presente per questo cliente e sede:\n"+dupId.acronimo+" · Matricola: "+dupId.matricola+" · ID: "+dupId.idDispositivo+" · Sede: "+(dupId.sede||"-"));return;}
 var filtri=collectFiltriStadi(),nSt=Object.keys(filtri).length;var stadiRaw=document.getElementById("stadiFiltranti").value,nDecl=parseNumStadi(stadiRaw);var stadiLabel=nDecl>0?(nDecl+" Stadio"):(stadiRaw||(nSt?nSt+" Stadio":""));var foto={url:document.getElementById("fotoUrl").value||"",path:document.getElementById("fotoPath").value||""};try{foto=await uploadFotoIfAny(id||"new");}catch(fe){alert(storageErrorMsg(fe,"foto"));return;}var row={cliente_id:cliente_id,acronimo:acronimo,costruttore:document.getElementById("costruttore").value.trim(),modello:document.getElementById("modello").value.trim(),matricola:matricola,id_dispositivo:idDispositivo,ultima_man:document.getElementById("ultimaMan").value||null,prossima_man:document.getElementById("prossimaMan").value||null,sede:sede,
-    dipartimento:(document.getElementById("dipartimento")&&document.getElementById("dipartimento").value||"").trim()||null,edificio:document.getElementById("edificio").value.trim(),laboratorio:document.getElementById("laboratorio").value.trim(),piano:document.getElementById("piano").value.trim(),stanza:document.getElementById("stanza").value.trim(),stato:document.getElementById("stato").value,responsabile:document.getElementById("responsabile").value.trim(),cadenza_man:document.getElementById("cadenzaMan").value.trim(),tipo_attivita:getTipo(),ha_sistema_filtrante:document.getElementById("haSistemaFiltrante").value,stadi_filtranti:stadiLabel,accessori:document.getElementById("accessori").value.trim(),note:document.getElementById("note").value.trim(),filtri_stadi:filtri,foto_url:foto.url||null,foto_path:foto.path||null,ultima_cert:document.getElementById("ultimaCert").value||null,prossima_cert:document.getElementById("prossimaCert").value||null,indirizzo:document.getElementById("indirizzo").value.trim()||null,geo_lat:document.getElementById("geoLat").value.trim()||null,geo_lng:document.getElementById("geoLng").value.trim()||null};
+    dipartimento:(document.getElementById("dipartimento")&&document.getElementById("dipartimento").value||"").trim()||null,edificio:document.getElementById("edificio").value.trim(),laboratorio:document.getElementById("laboratorio").value.trim(),piano:document.getElementById("piano").value.trim(),stanza:document.getElementById("stanza").value.trim(),stato:document.getElementById("stato").value,responsabile:document.getElementById("responsabile").value.trim(),referente_contatto:(document.getElementById("referenteContatto")&&document.getElementById("referenteContatto").value||"").trim()||null,cadenza_man:document.getElementById("cadenzaMan").value.trim(),tipo_attivita:getTipo(),ha_sistema_filtrante:document.getElementById("haSistemaFiltrante").value,stadi_filtranti:stadiLabel,accessori:document.getElementById("accessori").value.trim(),note:document.getElementById("note").value.trim(),filtri_stadi:filtri,foto_url:foto.url||null,foto_path:foto.path||null,ultima_cert:document.getElementById("ultimaCert").value||null,prossima_cert:document.getElementById("prossimaCert").value||null,indirizzo:document.getElementById("indirizzo").value.trim()||null,geo_lat:document.getElementById("geoLat").value.trim()||null,geo_lng:document.getElementById("geoLng").value.trim()||null};
   var isUpdate=!!id;
   var prev=isUpdate?equipment.find(function(x){return x.id===id;}):null;
   var changes=isUpdate?buildFieldDiff(prev,row,filtri):[];
@@ -4230,6 +4329,7 @@ function duplicaEquipment(id){
   document.getElementById("stanza").value=e.stanza;
   document.getElementById("stato").value=e.stato||"OPERATIVA";
   document.getElementById("responsabile").value=e.responsabile;
+  var rct=document.getElementById("referenteContatto");if(rct)rct.value=e.referenteContatto||"";
   document.getElementById("cadenzaMan").value=e.cadenzaMan;
   document.getElementById("haSistemaFiltrante").value=e.haSistemaFiltrante||"no";
   document.getElementById("stadiFiltranti").value=String(parseNumStadi(e.stadiFiltranti)||"");
