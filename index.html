@@ -5078,6 +5078,27 @@ async function saveNuovoIntervento(){
   try{await logAudit("INTERVENTO",null,eids.length+" DPC a "+tecNames.join(", ")+": "+tipo+" | report "+reps.length);}catch(ex){}
 }
 
+
+function formatAssiDpcByAcronimo(a){
+  var ids=parseAssiEquipIds(a);
+  if(!ids.length){
+    // fallback da campi testuali
+    if(a.acronimo&&String(a.acronimo).indexOf("MULTI")<0)return "1 "+(a.acronimo||"DPC");
+    return "0 DPC";
+  }
+  var counts={};
+  ids.forEach(function(id){
+    var e=(equipment||[]).find(function(x){return x.id===id;});
+    var ac=(e&&e.acronimo)?String(e.acronimo).trim():"?";
+    counts[ac]=(counts[ac]||0)+1;
+  });
+  var parts=Object.keys(counts).sort(function(x,y){return x.localeCompare(y,"it");}).map(function(k){
+    return counts[k]+" "+k;
+  });
+  var tot=ids.length;
+  return tot+" DPC ("+parts.join(" · ")+")";
+}
+
 function parseAssiEquipIds(a){
   if(!a)return[];
   if(a.equip_ids){
@@ -5194,10 +5215,8 @@ async function renderInterventiAssegnati(){
     if(fte){
       var tn=String(a.tecnico||"").toLowerCase();
       var fv=fte.toLowerCase();
-      // match nome o parte (interventi multi-tecnico "A, B")
       if(tn.indexOf(fv)<0){
-        // prova username data-attribute
-        var opt=document.querySelector('#iaFiltroTec option[value="'+fte.replace(/"/g,'\"')+'"]');
+        var opt=document.querySelector('#iaFiltroTec option[value="'+fte.replace(/"/g,'\\"')+'"]');
         var un=opt?((opt.getAttribute("data-username")||"").toLowerCase()):"";
         if(!un||tn.indexOf(un)<0)return false;
       }
@@ -5205,18 +5224,23 @@ async function renderInterventiAssegnati(){
     if(fcl&&a.cliente_id!==fcl)return false;
     return true;
   });
-  var canMod=isSuper()||isBackOfficer();
   if(!list.length){box.innerHTML='<p class="history-empty">Nessun intervento</p>';return;}
   var h="";
   list.forEach(function(a){
     var overdue=a.data&&daysUntil(a.data)!==null&&daysUntil(a.data)<0&&!a.done;
-    h+='<div class="oggi-item '+(a.done?"":(overdue?"overdue":"soon"))+'">';
-    h+='<div><strong>'+(a.acronimo||"")+' · '+(a.matricola||"")+'</strong> · '+clienteName(a.cliente_id);
-    h+='<div class="oggi-meta">'+fmt(a.data)+' · '+(a.tipo||"")+' · Tecnico: <strong>'+(a.tecnico||"-")+'</strong> · '+(a.sede||"")+(a.note?" · "+a.note:"")+(a.done?(" · <span class=\"badge badge-green\">COMPLETATO</span>"+(a.allegato_tipo?(" · <span class=\"badge badge-blue\">"+a.allegato_tipo+"</span>"):"")):" · <span class=\"badge badge-amber\">APERTO</span>")+'</div></div>';
+    var arch=!!(a.archived_at||a.deleted_at);
+    var statoBadge=arch?'<span class="badge badge-rose">ARCHIVIATO</span>':(a.done?'<span class="badge badge-green">COMPLETATO</span>':'<span class="badge badge-amber">APERTO</span>');
+    var dpcSummary=formatAssiDpcByAcronimo(a);
+    var sedeLab=a.sede||"-";
+    h+='<div class="oggi-item '+(a.done||arch?"":(overdue?"overdue":"soon"))+'">';
+    h+='<div style="min-width:0;flex:1">';
+    h+='<div style="font-weight:700;color:#1e293b;font-size:.95rem">'+clienteName(a.cliente_id)+' <span style="color:#94a3b8;font-weight:500">·</span> '+sedeLab+' <span style="color:#94a3b8;font-weight:500">·</span> '+fmt(a.data)+' <span style="color:#94a3b8;font-weight:500">·</span> Tecnico: <span style="color:#1d4ed8">'+(a.tecnico||"-")+'</span></div>';
+    h+='<div class="oggi-meta" style="margin-top:.25rem">'+dpcSummary+' · '+statoBadge+(a.allegato_tipo&&a.done?(' <span class="badge badge-blue">'+a.allegato_tipo+'</span>'):'')+'</div>';
+    h+='</div>';
     h+='<div style="display:flex;gap:.3rem;flex-wrap:wrap">';
-    if(!a.done){
+    if(!a.done&&!arch){
       h+='<button class="btn btn-primary" style="padding:.25rem .5rem" onclick="toggleAssi(\''+a.id+'\')">Fatto</button>';
-    }else{
+    }else if(!arch){
       h+='<button class="btn btn-secondary" style="padding:.25rem .5rem" onclick="toggleAssi(\''+a.id+'\')"><i class="fas fa-folder-open"></i> Riapri</button>';
     }
     h+='<button type="button" class="btn btn-secondary" style="padding:.25rem .5rem" onclick="try{window.openStoricoInterventiModal&&window.openStoricoInterventiModal(null,\''+(a.cliente_id||'')+'\')}catch(e){alert(e.message||e)}"><i class="fas fa-history"></i> Storico Interventi</button>';
