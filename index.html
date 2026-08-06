@@ -1085,7 +1085,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
         <select id="niCliente" onchange="onNiClienteChange()"><option value="">Seleziona...</option></select>
         <small class="hint">Precompilato dalla commessa, modificabile.</small>
       </div>
-      <div class="form-group"><label>Sede</label><select id="niSede" onchange="fillNiDpc()"><option value="">Seleziona sede...</option></select></div>
+      <div class="form-group"><label>Sede <small style="font-weight:400;color:#64748b">(dalla commessa)</small></label><select id="niSede" onchange="fillNiDpc()" disabled style="background:#f8fafc"><option value="">Seleziona sede...</option></select></div>
       <div class="form-group full"><label>Tipo intervento * <small style="font-weight:400;color:#64748b">(solo tipi della commessa; puoi toglierne, non aggiungerne)</small></label>
         <div id="niTipoChecks" style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.35rem">
           <label class="check-option"><input type="checkbox" name="niTipo" value="Manutenzione ordinaria"> Manutenzione ordinaria</label>
@@ -4793,15 +4793,32 @@ function onNiCommessaChange(){
   applyNiTipiFromCommessa(tipi);
   onNiClienteChange();
   var ns=document.getElementById("niSede");
-  if(ns&&c.sede){
-    var has=false;
-    for(var j=0;j<ns.options.length;j++){if(ns.options[j].value===c.sede){has=true;break;}}
-    if(!has){var o2=document.createElement("option");o2.value=c.sede;o2.textContent=c.sede;ns.appendChild(o2);}
-    ns.value=c.sede;
-    ns.disabled=false;
-  }
   var dpcIds=parseCommEquipIds(c);
   window._niCommessaEquipIds=dpcIds.slice();
+  // sede dalla commessa (o dai DPC collegati) — non modificabile
+  if(ns){
+    var sedeVal=(c.sede||"").trim();
+    if(!sedeVal&&dpcIds.length){
+      var sediMap={};
+      dpcIds.forEach(function(id){
+        var e=(equipment||[]).find(function(x){return String(x.id)===String(id);});
+        if(e&&e.sede)sediMap[String(e.sede).trim()]=1;
+      });
+      var keys=Object.keys(sediMap);
+      if(keys.length===1)sedeVal=keys[0];
+    }
+    ns.innerHTML="";
+    if(sedeVal){
+      ns.innerHTML='<option value="'+String(sedeVal).replace(/"/g,"&quot;")+'">'+sedeVal+"</option>";
+      ns.value=sedeVal;
+    }else{
+      ns.innerHTML='<option value="">— non specificata in commessa —</option>';
+      ns.value="";
+    }
+    ns.disabled=true;
+    ns.style.background="#f8fafc";
+  }
+  if(cliSel){cliSel.disabled=true;cliSel.style.background="#f8fafc";}
   fillNiDpc();
 }
 
@@ -4827,7 +4844,11 @@ async function openNuovoInterventoModal(){
     var list=clienti||[];
     if(isTecnico()){var ids=userClienteIds();list=list.filter(function(c){return ids.indexOf(c.id)>-1;});}
     list.forEach(function(c){sc.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});
+    sc.disabled=true;
+    sc.style.background="#f8fafc";
   }
+  window._niCommessaEquipIds=null;
+  window._niCommessaTipi=null;
   fillNiCommessaSelect("","");
   fillNiDpc();
   document.getElementById("nuovoInterventoModal").classList.add("show");
@@ -4835,6 +4856,12 @@ async function openNuovoInterventoModal(){
 function onNiClienteChange(){
   var cid=document.getElementById("niCliente").value;
   var ns=document.getElementById("niSede");
+  // se c'è una commessa selezionata, sede e cliente restano bloccati (gestiti da onNiCommessaChange)
+  var commId=(document.getElementById("niCommessa")&&document.getElementById("niCommessa").value)||"";
+  if(commId){
+    fillNiDpc();
+    return;
+  }
   if(!ns){fillNiDpc();return;}
   ns.innerHTML='<option value="">Seleziona sede...</option>';
   if(!cid){ns.disabled=true;fillNiDpc();return;}
@@ -4844,7 +4871,6 @@ function onNiClienteChange(){
     if(se)sedi[se]=1;
   });
   var keys=Object.keys(sedi).sort(function(a,b){return a.localeCompare(b,"it",{sensitivity:"base"});});
-  // opzione "Tutte le sedi"
   ns.innerHTML='<option value="">Tutte le sedi</option>';
   keys.forEach(function(se){
     ns.innerHTML+='<option value="'+se.replace(/"/g,"&quot;")+'">'+se+'</option>';
@@ -4853,6 +4879,7 @@ function onNiClienteChange(){
     ns.innerHTML='<option value="">Nessuna sede nei DPC</option>';
   }
   ns.disabled=false;
+  ns.style.background="";
   fillNiDpc();
 }
 function closeNuovoInterventoModal(){document.getElementById("nuovoInterventoModal").classList.remove("show");}
