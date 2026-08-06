@@ -2041,7 +2041,7 @@ async function renderCommesse(){
     h+="<td>"+fmtCommConLista(c.id_con)+"</td>";
     h+="<td>"+(c.creato_da||c.username||"-")+"</td>";
     h+="<td>"+fmtCommResponsabile(c)+"</td>";
-    h+='<td><button type="button" class="btn btn-secondary" style="padding:.3rem .55rem;font-size:.75rem;font-weight:600" onclick="openInterventiByCommessa(\''+c.id+'\',\''+String(c.cliente_id||"").replace(/'/g,"")+'\')" title="Storico interventi del cliente"><i class="fas fa-clipboard-list"></i> '+countInterventiCommessa(c.id)+'</button></td>';
+    h+='<td><button type="button" class="btn btn-secondary" style="padding:.3rem .55rem;font-size:.75rem;font-weight:600" onclick="window.openInterventiByCommessa&&window.openInterventiByCommessa(\''+c.id+'\',\''+String(c.cliente_id||"").replace(/'/g,"")+'\')" title="Storico interventi del cliente della commessa"><i class="fas fa-clipboard-list"></i> '+countInterventiCommessa(c.id)+'</button></td>';
     h+="<td>"+badge;
     if(isSuper()||isBackOfficer()){
       var audit=[];
@@ -4671,30 +4671,36 @@ async function ensureAssiCache(){
 function invalidateAssiCache(){_assiCacheForComm=null;}
 
 function openInterventiByCommessa(commId, clienteId){
-  // apre lo storico interventi del cliente a cui fa capo la commessa
-  var cid=clienteId;
-  if(!cid&&commId){
-    var c=(commesse||[]).find(function(x){return x.id===commId;});
-    if(c)cid=c.cliente_id;
+  // apre lo storico interventi del CLIENTE a cui fa capo la commessa
+  var cid=clienteId||"";
+  var c=null;
+  if(commId){
+    c=(commesse||[]).find(function(x){return x.id===commId;});
+    if(c&&!cid)cid=c.cliente_id||"";
   }
   if(!cid){
     alert("Cliente non trovato per questa commessa");
     return;
   }
+  window.__filterCommessaId=commId||null;
+  window.__filterCommessaNumero=c?c.numero:null;
   try{
-    if(typeof openStoricoInterventiModal==="function"){
-      openStoricoInterventiModal(null, cid);
+    var fn=window.openStoricoInterventiModal||openStoricoInterventiModal;
+    if(typeof fn==="function"){
+      var ret=fn(null, cid);
+      if(ret&&typeof ret.then==="function")ret.catch(function(e){alert("Errore storico: "+(e.message||e));});
       return;
     }
-  }catch(e){console.error(e);}
-  try{
-    if(window.openStoricoInterventiModal){
-      window.openStoricoInterventiModal(null, cid);
-      return;
-    }
-  }catch(e2){}
-  alert("Modale storico non disponibile");
+  }catch(e){
+    console.error(e);
+    alert("Errore apertura storico: "+(e.message||e));
+    return;
+  }
+  alert("Modale Storico Interventi non disponibile. Ricarica la pagina (Ctrl+F5).");
 }
+// binding globale per onclick inline
+window.openInterventiByCommessa=openInterventiByCommessa;
+
 
 function countInterventiCommessa(commId){
   if(!commId)return 0;
@@ -4716,8 +4722,15 @@ function fillNiCommessaSelect(clienteId, selected){
   });
   list.forEach(function(c){
     var lab=fmtCommNumeroLista(c.numero);
-    var cli=clienteName(c.cliente_id);
-    if(cli)lab+=" · "+cli;
+    var cliOp=clienteName(c.cliente_id);
+    var fattId=c.cliente_fatturazione_id||c.clienteFatturazioneId||"";
+    var cliFatt=fattId&&fattId!==c.cliente_id?clienteName(fattId):"";
+    if(cliOp&&cliFatt){
+      // formato: J 0006 - Bridgestone per ARPA LAZIO
+      lab+=" - "+cliFatt+" per "+cliOp;
+    }else if(cliOp){
+      lab+=" · "+cliOp;
+    }
     h+='<option value="'+c.id+'">'+lab+'</option>';
   });
   sel.innerHTML=h;
