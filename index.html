@@ -4835,6 +4835,8 @@ async function renderInterventiAssegnati(){
     var hdr=document.querySelector("#interventiAssegnatiModal .modal-header h2");
     if(hdr)hdr.innerHTML='Interventi assegnati <span style="font-size:.85rem;font-weight:500;color:#64748b">'+titleExtra+'</span> <button type="button" class="btn btn-secondary" style="padding:.2rem .45rem;font-size:.72rem;margin-left:.35rem" onclick="window.__filterCommessaId=null;window.__filterCommessaNumero=null;var h=document.querySelector(\'#interventiAssegnatiModal .modal-header h2\');if(h)h.textContent=\'Interventi assegnati\';renderInterventiAssegnati();">Togli filtro</button>';
   }
+  // nascondi archiviati dalla lista operativa
+  list=list.filter(function(a){return !a.archived_at&&!a.deleted_at;});
   list=list.filter(function(a){
     if(fst==="open"&&a.done)return false;
     if(fst==="done"&&!a.done)return false;
@@ -4863,14 +4865,12 @@ async function renderInterventiAssegnati(){
     h+='<div style="display:flex;gap:.3rem;flex-wrap:wrap">';
     if(!a.done){
       h+='<button class="btn btn-primary" style="padding:.25rem .5rem" onclick="toggleAssi(\''+a.id+'\')">Fatto</button>';
-    }else if(canMod){
-      h+='<button class="btn btn-secondary" style="padding:.25rem .5rem" onclick="toggleAssi(\''+a.id+'\')">Riapri</button>';
+    }else{
+      h+='<button class="btn btn-secondary" style="padding:.25rem .5rem" onclick="toggleAssi(\''+a.id+'\')"><i class="fas fa-folder-open"></i> Riapri</button>';
     }
-    if(a.equip_id){
-      h+='<button class="btn btn-secondary" style="padding:.25rem .5rem" onclick="closeInterventiAssegnatiModal();openHistory(\''+a.equip_id+'\')">Storico</button>';
-    }
-    if(canMod){
-      h+='<button class="btn btn-danger" style="padding:.25rem .5rem" onclick="deleteAssi(\''+a.id+'\')">Elimina</button>';
+    h+='<button class="btn btn-secondary" style="padding:.25rem .5rem" onclick="openStoricoInterventiModal()"><i class="fas fa-history"></i> Storico Interventi</button>';
+    if(isSuper()||isBackOfficer()||isTecnico()){
+      h+='<button class="btn btn-danger" style="padding:.25rem .5rem" onclick="deleteAssi(\''+a.id+'\')"><i class="fas fa-trash"></i> Elimina</button>';
     }
     h+='</div></div>';
   });
@@ -5058,7 +5058,7 @@ async function exportMag(){
 }
 
 /* ===== Assegnazioni tecnici (n.3) – Supabase condiviso ===== */
-async function loadAssiFromDb(){
+async function loadAssiFromDb(includeArchived){
   try{
     var res=await sb.from("assegnazioni").select("*").order("data",{ascending:true});
     if(res.error)throw res.error;
@@ -5149,13 +5149,25 @@ async function toggleAssi(id){
   }
   if(!a){alert("Assegnazione non trovata");return;}
   if(a.done){
-    if(!(isSuper()||isBackOfficer())){alert("Solo Super admin o Back Officer possono riaprire");return;}
-    var res=await sb.from("assegnazioni").update({done:false,allegato_tipo:null,allegato_url:null,chiuso_con_allegato:null}).eq("id",id);
+    // Riapri: tutti i ruoli operativi possono riaprire per modificare
+    if(!(isSuper()||isBackOfficer()||isTecnico())){alert("Permesso negato");return;}
+    if(!confirm("Riaprire l'intervento? Tornerà in stato APERTO e potrà essere modificato/chiuso di nuovo."))return;
+    var res=await sb.from("assegnazioni").update({
+      done:false,
+      allegato_tipo:null,
+      allegato_url:null,
+      allegato_path:null,
+      allegati:null,
+      chiuso_con_allegato:null,
+      chiuso_at:null,
+      archived_at:null,
+      archived_by:null
+    }).eq("id",id);
     if(res.error){
       res=await sb.from("assegnazioni").update({done:false}).eq("id",id);
       if(res.error){alert(res.error.message);return;}
     }
-    toast("Intervento riaperto");
+    toast("Intervento riaperto – ora modificabile");
     await renderAssegnazioni();
     try{await renderInterventiAssegnati();}catch(e){}
     return;
@@ -5329,13 +5341,85 @@ async function assiFattoConAllegato(){
 }
 
 async function deleteAssi(id){
-  if(!confirm("Eliminare assegnazione?"))return;
-  var res=await sb.from("assegnazioni").delete().eq("id",id);
-  if(res.error){alert(res.error.message);return;}
-  toast("Eliminata");
+  if(!(isSuper()||isBackOfficer()||isTecnico())){alert("Permesso negato");return;}
+  if(isSuper()){
+    if(!confirm("SUPER ADMIN: eliminazione DEFINITIVA dell'intervento.\nNon sarà recuperabile. Continuare?"))return;
+    var res=await sb.from("assegnazioni").delete().eq("id",id);
+    if(res.error){alert(res.error.message);return;}
+    toast("Intervento eliminato definitivamente");
+  }else{
+    if(!confirm("Archiviare l'intervento?\nNon verrà cancellato definitivamente (recuperabile da Super admin / Storico)."))return;
+    var res=await sb.from("assegnazioni").update({
+      archived_at:new Date().toISOString(),
+      archived_by:currentUser?(currentUser.username||currentUser.nome):""
+    }).eq("id",id);
+    if(res.error){
+      // fallback se manca colonna
+      res=await sb.from("assegnazioni").update({note:(await (async function(){
+        var list=await loadAssiFromDb(true)||[];
+        var a=list.find(function(x){return x.id===id;});
+        return ((a&&a.note)||"")+" | ARCHIVIATO";
+      })())}).eq("id",id);
+      if(res.error){alert(res.error.message+"\n\nEsegui:\nalter table assegnazioni add column if not exists archived_at timestamptz;\nalter table assegnazioni add column if not exists archived_by text;");return;}
+      toast("Archiviato (metadati limitati)");
+    }else toast("Intervento archiviato");
+  }
   await renderAssegnazioni();
   try{await renderInterventiAssegnati();}catch(e){}
 }
+
+function closeStoricoInterventiModal(){
+  var m=document.getElementById("storicoInterventiModal");
+  if(m)m.classList.remove("show");
+}
+async function openStoricoInterventiModal(focusId){
+  window._siFocusId=focusId||null;
+  document.getElementById("storicoInterventiModal").classList.add("show");
+  await renderStoricoInterventi();
+}
+async function renderStoricoInterventi(){
+  var box=document.getElementById("siList");
+  if(!box)return;
+  box.innerHTML="Caricamento...";
+  var list=await loadAssiFromDb(true); // include archived
+  if(list===null){
+    box.innerHTML='<div class="device-info">Tabella assegnazioni non disponibile.</div>';
+    return;
+  }
+  var fst=(document.getElementById("siFiltroStato")&&document.getElementById("siFiltroStato").value)||"";
+  var q=((document.getElementById("siSearch")&&document.getElementById("siSearch").value)||"").toLowerCase().trim();
+  list=list.filter(function(a){
+    var arch=!!(a.archived_at||a.deleted_at);
+    if(fst==="open"&&(a.done||arch))return false;
+    if(fst==="done"&&(!a.done||arch))return false;
+    if(fst==="arch"&&!arch)return false;
+    if(q){
+      var blob=[a.acronimo,a.matricola,a.tecnico,a.tipo,a.sede,a.note,clienteName(a.cliente_id),a.allegato_tipo].join(" ").toLowerCase();
+      if(blob.indexOf(q)<0)return false;
+    }
+    return true;
+  });
+  // più recenti prima
+  list.sort(function(a,b){return String(b.data||"").localeCompare(String(a.data||""));});
+  if(!list.length){box.innerHTML='<p class="history-empty">Nessun intervento nello storico</p>';return;}
+  var h="";
+  list.forEach(function(a){
+    var arch=!!(a.archived_at||a.deleted_at);
+    var st=arch?'<span class="badge badge-rose">ARCHIVIATO</span>':(a.done?'<span class="badge badge-green">COMPLETATO</span>':'<span class="badge badge-amber">APERTO</span>');
+    var focus=window._siFocusId&&window._siFocusId===a.id?'border:2px solid #3b82f6;':'';
+    h+='<div class="oggi-item" style="'+focus+'opacity:'+(arch?'0.75':'1')+'">';
+    h+='<div><strong>'+(a.acronimo||"")+' · '+(a.matricola||"")+'</strong> · '+clienteName(a.cliente_id)+' '+st;
+    if(a.allegato_tipo)h+=' <span class="badge badge-blue">'+a.allegato_tipo+'</span>';
+    h+='<div class="oggi-meta">'+fmt(a.data)+' · '+(a.tipo||"")+' · Tecnico: <strong>'+(a.tecnico||"-")+'</strong>';
+    if(a.sede)h+=' · '+a.sede;
+    if(a.note)h+=' · '+a.note;
+    if(arch&&a.archived_by)h+=' · Archiviato da: '+a.archived_by;
+    if(a.allegato_url)h+=' · <a href="'+a.allegato_url+'" target="_blank" rel="noopener">Apri allegato</a>';
+    h+='</div></div></div>';
+  });
+  box.innerHTML=h;
+}
+
 
 /* ===== Mappa sedi (n.9) ===== */
 var _mapObj=null,_mapMarkers=[];
