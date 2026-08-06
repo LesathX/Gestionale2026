@@ -775,7 +775,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
       </div>
       <button class="btn btn-primary" type="button" onclick="openQuickClienteModal('lista')"><i class="fas fa-plus"></i> Nuovo cliente</button>
     </div>
-    <table class="users-table"><thead><tr><th>Nome</th><th>Codice</th><th>Città</th><th>Dipartimento</th><th>DPC</th><th></th></tr></thead><tbody id="clientiTableBody"></tbody></table>
+    <table class="users-table"><thead><tr><th>Nome</th><th>Codice</th><th>Sede legale</th><th>Sede</th><th>Dipartimento</th><th>DPC</th><th></th></tr></thead><tbody id="clientiTableBody"></tbody></table>
   </div>
 </div></div>
 
@@ -789,7 +789,8 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
     <div class="form-grid">
       <div class="form-group"><label>Nome *</label><input id="cliNome"></div>
       <div class="form-group"><label>Codice * <small style="font-weight:400;color:#64748b">(progressivo, modificabile)</small></label><input id="cliCodice"></div>
-      <div class="form-group"><label>Citta *</label><input id="cliCitta"></div>
+      <div class="form-group"><label>Sede legale *</label><input id="cliCitta" placeholder="sede legale"></div>
+      <div class="form-group"><label>Sede</label><input id="cliSede" placeholder="es. Roma, Milano, Pisa..."></div>
       <div class="form-group"><label>Dipartimento</label><input id="cliDipartimento" placeholder="es. R&D, Produzione..."></div>
       <div class="form-group full"><label>Indirizzo</label><input id="cliIndirizzo"></div>
       <div class="form-group full"><label>Note *</label><input id="cliNote"></div>
@@ -823,8 +824,9 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
     <div class="form-grid" style="grid-template-columns:1fr 1fr">
       <div class="form-group"><label>Nome *</label><input id="quickCliNome"></div>
       <div class="form-group"><label>Codice * <small style="font-weight:400;color:#64748b">(progressivo auto)</small></label><input id="quickCliCodice" placeholder="auto"></div>
-      <div class="form-group"><label>Città *</label><input id="quickCliCitta"></div>
-      <div class="form-group"><label>Dipartimento</label><input id="quickCliDipartimento"></div>
+      <div class="form-group"><label>Sede legale *</label><input id="quickCliCitta" placeholder="sede legale"></div>
+      <div class="form-group"><label>Sede</label><input id="quickCliSede" placeholder="es. Roma, Pisa..."></div>
+      <div class="form-group"><label>Dipartimento</label><input id="quickCliDipartimento" placeholder="es. R&D..."></div>
       <div class="form-group full"><label>Indirizzo</label><input id="quickCliIndirizzo"></div>
       <div class="form-group full"><label>Note *</label><input id="quickCliNote" placeholder="N.A. se manca"></div>
     </div>
@@ -846,7 +848,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.55rem">
           <div class="form-group" style="margin:0">
             <label style="color:#1e40af;font-weight:600">N° PROTOCOLLO ROE *</label>
-            <input id="commProtocollo" placeholder="es. ROE-2026-0142" autocomplete="off" oninput="onCommProtocolloInput()">
+            <input id="commProtocollo" placeholder="es. 0142 (4 cifre)" inputmode="numeric" autocomplete="off" oninput="onCommProtocolloInput()" onblur="normalizeProtocol4('commProtocollo')">
           </div>
           <div class="form-group" style="margin:0">
             <label style="color:#1e40af;font-weight:600">N° PROTOCOLLO OFC / AMM *</label>
@@ -855,24 +857,28 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
                 <option value="OFC">OFC</option>
                 <option value="AMM">AMM</option>
               </select>
-              <input id="commOfc" placeholder="es. 1234" style="flex:1">
+              <input id="commOfc" placeholder="es. 1234 (4 cifre)" inputmode="numeric" style="flex:1" onblur="normalizeProtocol4('commOfc')">
             </div>
             <small class="hint" style="display:block;margin-top:.2rem;color:#64748b">In lista: S {numero} OFC oppure S {numero} AMM</small>
           </div>
           <div class="form-group" style="margin:0">
             <label style="color:#1e40af;font-weight:600">N° PROTOCOLLO CON</label>
-            <input id="commCon" placeholder="es. CON-2026-001">
+            <input id="commCon" placeholder="es. 0001 (4 cifre, opz.)" inputmode="numeric" onblur="normalizeProtocol4('commCon')">
           </div>
         </div>
-        <small class="hint" style="display:block;margin-top:.4rem;color:#64748b">Il protocollo viene copiato sull’ID ROE. Il numero commessa è progressivo e indipendente.</small>
+        <small class="hint" style="display:block;margin-top:.4rem;color:#64748b">ROE / OFC-AMM / CON: solo 4 cifre (es. 0342). Se ne inserisci 3, viene aggiunto uno 0 davanti.</small>
       </div>
       <div class="form-group"><label>Numero commessa * <small style="font-weight:400;color:#64748b">(progressivo, modificabile)</small></label><input id="commNumero" placeholder="auto progressivo"></div>
       <div class="form-group" style="display:none"><label>ID ROE</label><input id="commRoe" placeholder="= protocollo"></div>
-      <div class="form-group"><label>Cliente *</label>
+      <div class="form-group"><label>Cliente operativo * <small style="font-weight:400;color:#64748b">(dove si lavora)</small></label>
         <div style="display:flex;gap:.35rem;align-items:center">
           <select id="commCliente" style="flex:1" onchange="onCommClienteChange()"><option value="">Seleziona...</option></select>
           <button type="button" class="btn btn-secondary" title="Nuovo cliente" onclick="openQuickClienteModal('commessa')" style="white-space:nowrap;padding:.45rem .55rem"><i class="fas fa-plus"></i></button>
         </div>
+      </div>
+      <div class="form-group"><label>Cliente fatturazione <small style="font-weight:400;color:#64748b">(chi paga – se diverso)</small></label>
+        <select id="commClienteFatt"><option value="">= stesso del cliente operativo</option></select>
+        <small class="hint">Compila solo se subappalto: lavori presso A, fatturato a B</small>
       </div>
       <div class="form-group"><label>Sede</label>
         <select id="commSede" onchange="onCommSedeChange()"><option value="">Tutte / non specificata</option></select>
@@ -898,7 +904,11 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
           <label class="check-option"><input type="checkbox" name="commTipo" value="Verifica periodica"> Verifica periodica</label>
           <label class="check-option"><input type="checkbox" name="commTipo" value="Smaltimento DPC"> Smaltimento DPC</label>
           <label class="check-option"><input type="checkbox" name="commTipo" value="Sopralluogo"> Sopralluogo</label>
-          <label class="check-option"><input type="checkbox" name="commTipo" value="Altro"> Altro</label>
+          <label class="check-option"><input type="checkbox" name="commTipo" value="Altro" onchange="onCommTipoAltroChange()"> Altro</label>
+        </div>
+        <div class="form-group full" id="wrapCommTipoAltro" style="display:none;margin-top:.35rem">
+          <label>Specifica Altro *</label>
+          <input id="commTipoAltroSpec" placeholder="descrivi il tipo di intervento...">
         </div>
       </div>
       <div class="form-group"><label>Referente – nome</label><input id="commRefNome" placeholder="nome cognome"></div>
@@ -1642,6 +1652,7 @@ function openQuickClienteModal(target){
   var qcc=document.getElementById("quickCliCodice");
   if(qcc){if(isTecnico()&&!isSuper()&&!isBackOfficer()){qcc.readOnly=true;}else{qcc.readOnly=false;}}
   document.getElementById("quickCliCitta").value="";
+  var qs=document.getElementById("quickCliSede");if(qs)qs.value="";
   document.getElementById("quickCliDipartimento").value="";
   document.getElementById("quickCliIndirizzo").value="";
   document.getElementById("quickCliNote").value="";
@@ -1662,13 +1673,15 @@ async function saveQuickCliente(){
   var codice=reqNA(document.getElementById("quickCliCodice").value);
   var citta=reqNA(document.getElementById("quickCliCitta").value);
   var note=reqNA(document.getElementById("quickCliNote").value);
+  var sedeCli=(document.getElementById("quickCliSede")&&document.getElementById("quickCliSede").value||"").trim()||null;
   var dip=(document.getElementById("quickCliDipartimento").value||"").trim()||null;
   var ind=(document.getElementById("quickCliIndirizzo").value||"").trim()||null;
-  if(!nome||!codice||!citta||!note){alert("Nome, codice, città e note obbligatori (usa N.A. se manca un dato)");return;}
+  if(!nome||!codice||!citta||!note){alert("Nome, codice, sede legale e note obbligatori (usa N.A. se manca un dato)");return;}
   // evita duplicato codice
   var dup=(clienti||[]).some(function(c){return String(c.codice||"").toLowerCase()===String(codice).toLowerCase();});
   if(dup&&!confirm("Esiste già un cliente con codice \""+codice+"\". Creare comunque?"))return;
   var row={nome:nome,codice:codice,citta:citta,note:note};
+  if(sedeCli)row.sede=sedeCli;
   if(dip)row.dipartimento=dip;
   if(ind)row.indirizzo=ind;
   var res=await saveClienteToDb(row, null);
@@ -1818,7 +1831,20 @@ function calcCommCadenza(){
   }else el.value="";
 }
 function getCommTipiSelected(){
-  return Array.from(document.querySelectorAll('input[name="commTipo"]:checked')).map(function(cb){return cb.value;});
+  var list=Array.from(document.querySelectorAll('input[name="commTipo"]:checked')).map(function(cb){return cb.value;});
+  // se Altro, sostituisci con "Altro: specifica"
+  var idx=list.indexOf("Altro");
+  if(idx>=0){
+    var spec=(document.getElementById("commTipoAltroSpec")&&document.getElementById("commTipoAltroSpec").value||"").trim();
+    if(spec)list[idx]="Altro: "+spec;
+  }
+  return list;
+}
+function onCommTipoAltroChange(){
+  var on=document.querySelector('input[name="commTipo"][value="Altro"]');
+  var wrap=document.getElementById("wrapCommTipoAltro");
+  if(wrap)wrap.style.display=(on&&on.checked)?"block":"none";
+  if(on&&!on.checked){var sp=document.getElementById("commTipoAltroSpec");if(sp)sp.value="";}
 }
 function setCommTipiSelected(arr){
   arr=arr||[];
@@ -1826,9 +1852,18 @@ function setCommTipiSelected(arr){
     try{arr=JSON.parse(arr);}catch(e){arr=arr?arr.split(",").map(function(x){return x.trim();}):[];}
   }
   if(!Array.isArray(arr))arr=[];
-  document.querySelectorAll('input[name="commTipo"]').forEach(function(cb){
-    cb.checked=arr.indexOf(cb.value)>=0;
+  var hasAltroSpec="";
+  var arrNorm=arr.map(function(x){
+    var t=String(x||"");
+    if(/^Altro\s*:/i.test(t)){hasAltroSpec=t.replace(/^Altro\s*:\s*/i,"");return "Altro";}
+    return t;
   });
+  document.querySelectorAll('input[name="commTipo"]').forEach(function(cb){
+    cb.checked=arrNorm.indexOf(cb.value)>=0;
+  });
+  var sp=document.getElementById("commTipoAltroSpec");
+  if(sp)sp.value=hasAltroSpec;
+  onCommTipoAltroChange();
 }
 function formatCommTipi(c){
   var t=c.tipo_interventi||c.tipo_intervento;
@@ -1916,7 +1951,11 @@ async function renderCommesse(){
     var ref=((c.referente_nome||"")+(c.referente_contatto?(" · "+c.referente_contatto):""))||"-";
     h+="<tr>";
     h+="<td><strong>"+fmtCommNumeroLista(c.numero)+"</strong></td>";
-    h+="<td>"+clienteName(c.cliente_id)+"</td>";
+    var cliLab=clienteName(c.cliente_id);
+    if(c.cliente_fatturazione_id&&c.cliente_fatturazione_id!==c.cliente_id){
+      cliLab+='<div style="font-size:.68rem;color:#64748b">Fatt: '+clienteName(c.cliente_fatturazione_id)+'</div>';
+    }
+    h+="<td>"+cliLab+"</td>";
     h+="<td>"+dur+"</td>";
     h+="<td>"+(c.n_interventi!=null?c.n_interventi:"-")+"</td>";
     h+="<td>"+cad+"</td>";
@@ -1928,15 +1967,27 @@ async function renderCommesse(){
     h+="<td>"+(c.creato_da||c.username||"-")+"</td>";
     h+="<td>"+fmtCommResponsabile(c)+"</td>";
     h+='<td><button type="button" class="btn btn-secondary" style="padding:.3rem .55rem;font-size:.75rem;font-weight:600" onclick="openInterventiByCommessa(\''+c.id+'\',\''+String(c.numero||"").replace(/'/g,"")+'\')" title="Tutti gli interventi di questa commessa"><i class="fas fa-clipboard-list"></i> '+countInterventiCommessa(c.id)+'</button></td>';
-    h+="<td>"+badge+"</td>";
+    h+="<td>"+badge;
+    if(isSuper()||isBackOfficer()){
+      var audit=[];
+      if(c.creato_da)audit.push("Aperta: "+c.creato_da);
+      if(c.modificato_da)audit.push("Mod: "+c.modificato_da);
+      if(c.chiusa_da)audit.push("Chiusa: "+c.chiusa_da);
+      if(audit.length)h+='<div style="font-size:.65rem;color:#64748b;margin-top:.2rem">'+audit.join(" · ")+'</div>';
+    }
+    h+="</td>";
     h+='<td><div class="comm-actions">';
     h+='<button class="btn btn-secondary" onclick="commessaDettagli(\''+c.id+'\')">DETTAGLI</button>';
     h+='<button class="btn btn-oggi" onclick="commessaGeneraRit(\''+c.id+'\')">GENERA RIT</button>';
     if(stato!=="chiusa"){
       h+='<button class="btn btn-primary" onclick="editCommessa(\''+c.id+'\')"><i class="fas fa-pen"></i></button>';
-      h+='<button class="btn btn-danger" onclick="chiudiCommessa(\''+c.id+'\')">CHIUDI COMMESSA</button>';
+      if(isSuper()||isBackOfficer()){
+        h+='<button class="btn btn-danger" onclick="chiudiCommessa(\''+c.id+'\')">CHIUDI COMMESSA</button>';
+      }
     }else{
-      h+='<button class="btn btn-primary" onclick="riapriCommessa(\''+c.id+'\')"><i class="fas fa-folder-open"></i> RIAPRI COMMESSA</button>';
+      if(isSuper()||isBackOfficer()){
+        h+='<button class="btn btn-primary" onclick="riapriCommessa(\''+c.id+'\')"><i class="fas fa-folder-open"></i> RIAPRI COMMESSA</button>';
+      }
     }
     if(isSuper()||isBackOfficer()){
       h+='<button class="btn btn-danger" onclick="deleteCommessa(\''+c.id+'\')" title="Elimina definitivamente la commessa"><i class="fas fa-trash"></i> ELIMINA</button>';
@@ -2029,6 +2080,19 @@ function fmtCommResponsabile(c){
 }
 
 
+
+function fillCommClienteFattSelect(selected){
+  var sel=document.getElementById("commClienteFatt");
+  if(!sel)return;
+  var cur=selected!=null?selected:sel.value;
+  var h='<option value="">= stesso del cliente operativo</option>';
+  (clienti||[]).forEach(function(c){
+    h+='<option value="'+c.id+'">'+c.nome+'</option>';
+  });
+  sel.innerHTML=h;
+  if(cur)sel.value=cur;
+}
+
 function onCommClienteChange(){
   var cid=document.getElementById("commCliente").value;
   var ns=document.getElementById("commSede");
@@ -2070,6 +2134,34 @@ function getCommDpcSelected(){
   return Array.from(document.querySelectorAll(".comm-dpc-cb:checked")).map(function(cb){return cb.value;});
 }
 
+
+function normalizeProtocol4(elId){
+  var el=document.getElementById(elId);
+  if(!el)return;
+  var raw=String(el.value||"").trim();
+  if(!raw)return;
+  // solo cifre
+  var digits=raw.replace(/\D/g,"");
+  if(!digits){el.value="";return;}
+  // max 4, pad left con 0 se <4
+  if(digits.length>4)digits=digits.slice(-4); // o slice(0,4)? preferisci ultimi 4 se troppo lunghi - user said 4 numbers
+  // user: se 3 cifre aggiungi 0 davanti
+  while(digits.length<4)digits="0"+digits;
+  if(digits.length>4)digits=digits.slice(0,4);
+  el.value=digits;
+  if(elId==="commProtocollo"){
+    var roe=document.getElementById("commRoe");
+    if(roe)roe.value=digits;
+  }
+}
+function extractProtocolDigits(val){
+  var digits=String(val||"").replace(/\D/g,"");
+  if(!digits)return "";
+  while(digits.length<4)digits="0"+digits;
+  if(digits.length>4)digits=digits.slice(0,4);
+  return digits;
+}
+
 function onCommProtocolloInput(){
   var p=(document.getElementById("commProtocollo").value||"").trim();
   var roe=document.getElementById("commRoe");
@@ -2109,6 +2201,7 @@ function openCommessaModal(id){
     document.getElementById("commRefNome").value="";
     document.getElementById("commRefContatto").value="";
     fillCommResponsabileSelect("");
+  fillCommClienteFattSelect("");
     var cr=document.getElementById("commCreatoDa");if(cr){cr.value=currentUser?(currentUser.username||currentUser.nome||""):"";cr.readOnly=!isSuper();}
     document.getElementById("commRoe").value="";
     document.getElementById("commOfc").value="";
@@ -2130,6 +2223,7 @@ function openCommessaModal(id){
     cu2.title=can?"Modificabile (Super admin)":"Solo Super admin può modificare";
   }
   fillCommResponsabileSelect("");
+  fillCommClienteFattSelect("");
   document.getElementById("commessaModal").classList.add("show");
   // Nuova commessa: focus immediato sul N° PROTOCOLLO ROE
   if(!id){
@@ -2148,6 +2242,7 @@ function editCommessa(id){
   var prot=document.getElementById("commProtocollo");if(prot)prot.value=c.id_roe||"";
   document.getElementById("commCliente").value=c.cliente_id||"";
   onCommClienteChange();
+  fillCommClienteFattSelect(c.cliente_fatturazione_id||"");
   var cs=document.getElementById("commSede");
   if(cs&&c.sede)cs.value=c.sede;
   var dpcIds=c.equip_ids||c.dpc_ids||[];
@@ -2196,17 +2291,33 @@ async function saveCommessa(){
   var durata=parseInt(document.getElementById("commDurata").value,10);
   var nInt=parseInt(document.getElementById("commNInt").value,10);
   var tipi=getCommTipiSelected();
-  var ofc=(document.getElementById("commOfc").value||"").trim();
-  var con=(document.getElementById("commCon").value||"").trim();
+  try{normalizeProtocol4("commProtocollo");normalizeProtocol4("commOfc");normalizeProtocol4("commCon");}catch(e){}
+  var ofc=extractProtocolDigits(document.getElementById("commOfc").value||"");
+  var con=extractProtocolDigits(document.getElementById("commCon").value||"");
+  protocollo=extractProtocolDigits(protocollo);
+  roe=extractProtocolDigits(roe||protocollo);
+  if(document.getElementById("commOfc"))document.getElementById("commOfc").value=ofc;
+  if(document.getElementById("commCon")&&con)document.getElementById("commCon").value=con;
+  if(document.getElementById("commProtocollo"))document.getElementById("commProtocollo").value=protocollo;
+  if(document.getElementById("commRoe"))document.getElementById("commRoe").value=roe;
   if(!protocollo){alert("Inserisci il N° PROTOCOLLO ROE — è il primo dato richiesto.");var el=document.getElementById("commProtocollo");if(el)el.focus();return;}
   if(!ofc){alert("Inserisci il N° PROTOCOLLO (OFC o AMM).");var el=document.getElementById("commOfc");if(el)el.focus();return;}
   if(!numero||!cliente_id||nInt==null||isNaN(nInt)||nInt<1||!tipi.length){alert("Compila Protocollo/Numero, Cliente, N° interventi (≥1) e almeno un Tipo intervento.\nDurata mesi può essere 0.");return;}
+  var altroOn=document.querySelector('input[name="commTipo"][value="Altro"]');
+  if(altroOn&&altroOn.checked){
+    var spec=(document.getElementById("commTipoAltroSpec")&&document.getElementById("commTipoAltroSpec").value||"").trim();
+    if(!spec){alert("Hai selezionato Altro: specifica il tipo di intervento.");var el=document.getElementById("commTipoAltroSpec");if(el)el.focus();return;}
+  }
+  if(protocollo&&!/^\d{4}$/.test(protocollo)){alert("N° PROTOCOLLO ROE deve essere di 4 cifre numeriche.");return;}
+  if(ofc&&!/^\d{4}$/.test(ofc)){alert("N° PROTOCOLLO OFC/AMM deve essere di 4 cifre numeriche.");return;}
+  if(con&&!/^\d{4}$/.test(con)){alert("N° PROTOCOLLO CON deve essere di 4 cifre numeriche.");return;}
   if(isNaN(durata)||durata<0){alert("Durata mesi non valida (usa 0 o un numero positivo)");return;}
   var cad=Math.round(durata/nInt);
   if(cad<1)cad=1;
   var row={
     numero:numero,
     cliente_id:cliente_id,
+    cliente_fatturazione_id:(document.getElementById("commClienteFatt")&&document.getElementById("commClienteFatt").value)||null,
     durata_mesi:durata,
     durata_giorni:durata*30,
     n_interventi:nInt,
@@ -2237,6 +2348,8 @@ async function saveCommessa(){
   }else if(isSuper()){
     row.creato_da=creatoVal||null;
   }
+  row.modificato_da=currentUser?(currentUser.username||currentUser.nome||""):"";
+  row.modificato_at=new Date().toISOString();
   var res=id?await sb.from("commesse").update(row).eq("id",id):await sb.from("commesse").insert([row]);
   if(res.error){alert(res.error.message+"\n\nSe manca la tabella, esegui lo SQL Commesse su Supabase.");return;}
   toast(id?"Commessa aggiornata":"Commessa creata");
@@ -2263,24 +2376,47 @@ async function deleteCommessa(id){
 }
 
 async function chiudiCommessa(id){
+  if(!(isSuper()||isBackOfficer())){alert("Solo Super admin o Back Officer possono chiudere le commesse");return;}
   var c=commesse.find(function(x){return x.id===id;});
   if(!c)return;
-  if(!confirm("Chiudere la commessa \""+(c.numero||"")+"\"?\nPasser\u00e0 nell'elenco Chiuse."))return;
-  var res=await sb.from("commesse").update({stato:"chiusa",chiusa_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",id);
-  if(res.error){alert(res.error.message);return;}
-  toast("Commessa chiusa");
+  if(!confirm("Chiudere la commessa \""+(c.numero||"")+"\"?\nPasserà nell'elenco Chiuse."))return;
+  var who=currentUser?(currentUser.username||currentUser.nome||""):"";
+  var res=await sb.from("commesse").update({
+    stato:"chiusa",
+    chiusa_at:new Date().toISOString(),
+    chiusa_da:who,
+    updated_at:new Date().toISOString(),
+    modificato_da:who
+  }).eq("id",id);
+  if(res.error){
+    res=await sb.from("commesse").update({stato:"chiusa",chiusa_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",id);
+    if(res.error){alert(res.error.message);return;}
+  }
+  toast("Commessa chiusa da "+who);
   await loadCommesse();
-  try{await logAudit("COMMESSA",null,"Chiusa "+(c.numero||""));}catch(e){}
+  try{await logAudit("COMMESSA",null,"Chiusa "+(c.numero||"")+" da "+who);}catch(e){}
 }
 async function riapriCommessa(id){
+  if(!(isSuper()||isBackOfficer())){alert("Solo Super admin o Back Officer possono riaprire le commesse");return;}
   var c=commesse.find(function(x){return x.id===id;});
   if(!c)return;
   if(!confirm("Riaprire la commessa \""+(c.numero||"")+"\"?"))return;
-  var res=await sb.from("commesse").update({stato:"aperta",chiusa_at:null,updated_at:new Date().toISOString()}).eq("id",id);
-  if(res.error){alert(res.error.message);return;}
-  toast("Commessa riaperta");
+  var who=currentUser?(currentUser.username||currentUser.nome||""):"";
+  var res=await sb.from("commesse").update({
+    stato:"aperta",
+    chiusa_at:null,
+    riaperta_da:who,
+    riaperta_at:new Date().toISOString(),
+    updated_at:new Date().toISOString(),
+    modificato_da:who
+  }).eq("id",id);
+  if(res.error){
+    res=await sb.from("commesse").update({stato:"aperta",chiusa_at:null,updated_at:new Date().toISOString()}).eq("id",id);
+    if(res.error){alert(res.error.message);return;}
+  }
+  toast("Commessa riaperta da "+who);
   await loadCommesse();
-  try{await logAudit("COMMESSA",null,"Riaperta "+(c.numero||""));}catch(e){}
+  try{await logAudit("COMMESSA",null,"Riaperta "+(c.numero||"")+" da "+who);}catch(e){}
 }
 function commessaDettagli(id){
   var c=commesse.find(function(x){return x.id===id;});
@@ -2502,6 +2638,7 @@ function openClienteScheda(id){
   document.getElementById("cliNome").value=c.nome||"";
   document.getElementById("cliCodice").value=c.codice||"";
   document.getElementById("cliCitta").value=c.citta||"";
+  var se2=document.getElementById("cliSede");if(se2)se2.value=c.sede||"";
   var dip=document.getElementById("cliDipartimento");if(dip)dip.value=c.dipartimento||"";
   var ind=document.getElementById("cliIndirizzo");if(ind)ind.value=c.indirizzo||"";
   document.getElementById("cliNote").value=c.note||"";
@@ -2562,7 +2699,7 @@ async function showSchedaInterventiMese(){
   document.getElementById("schedaIntMeseBox").style.display="block";
 }
 
-function resetClienteForm(){document.getElementById("editClienteId").value="";document.getElementById("cliNome").value="";document.getElementById("cliCodice").value="";try{applyAutoClientCode("cliCodice");}catch(e){}document.getElementById("cliCitta").value="";document.getElementById("cliNote").value="";var dip=document.getElementById("cliDipartimento");if(dip)dip.value="";var a=document.getElementById("cliContrattoInizio");if(a)a.value="";var b=document.getElementById("cliContrattoFine");if(b)b.value="";var c=document.getElementById("cliContrattoNote");if(c)c.value="";}
+function resetClienteForm(){document.getElementById("editClienteId").value="";document.getElementById("cliNome").value="";document.getElementById("cliCodice").value="";try{applyAutoClientCode("cliCodice");}catch(e){}document.getElementById("cliCitta").value="";document.getElementById("cliNote").value="";var se=document.getElementById("cliSede");if(se)se.value="";var dip=document.getElementById("cliDipartimento");if(dip)dip.value="";var a=document.getElementById("cliContrattoInizio");if(a)a.value="";var b=document.getElementById("cliContrattoFine");if(b)b.value="";var c=document.getElementById("cliContrattoNote");if(c)c.value="";}
 function countDpc(cid){return equipment.filter(function(e){return e.clienteId===cid;}).length;}
 function renderClienti(){
   var html="";
@@ -2570,7 +2707,7 @@ function renderClienti(){
   var list=isSuper()? (clientiAll||clienti) : clienti;
   list.forEach(function(c){
     if(q){
-      var blob=[c.nome,c.codice,c.citta,c.dipartimento,c.indirizzo,c.note].join(" ").toLowerCase();
+      var blob=[c.nome,c.codice,c.citta,c.sede,c.dipartimento,c.indirizzo,c.note].join(" ").toLowerCase();
       if(blob.indexOf(q)<0)return;
     }
     var archived=!!c.deleted_at;
@@ -2579,6 +2716,7 @@ function renderClienti(){
     html+="<td>"+(c.nome||"-")+(archived?" <span class=\"badge badge-rose\">ARCHIVIATO</span>":"")+"</td>";
     html+="<td>"+(c.codice||"-")+"</td>";
     html+="<td>"+(c.citta||"-")+"</td>";
+    html+="<td>"+(c.sede||"-")+"</td>";
     html+="<td>"+(c.dipartimento||"-")+"</td>";
     html+="<td>"+nDpc+"</td>";
     html+='<td style="white-space:nowrap">';
@@ -2593,7 +2731,7 @@ function renderClienti(){
   });
   document.getElementById("clientiTableBody").innerHTML=html||"<tr><td colspan='6'>Nessun cliente</td></tr>";
 }
-function editCliente(id){var c=clienti.find(function(x){return x.id===id;});if(!c)return;document.getElementById("editClienteId").value=c.id;document.getElementById("cliNome").value=c.nome||"";document.getElementById("cliCodice").value=c.codice||"";document.getElementById("cliCitta").value=c.citta||"";document.getElementById("cliNote").value=c.note||"";var dip=document.getElementById("cliDipartimento");if(dip)dip.value=c.dipartimento||"";var a=document.getElementById("cliContrattoInizio");if(a)a.value=c.contratto_inizio||c.contrattoInizio||"";var b=document.getElementById("cliContrattoFine");if(b)b.value=c.contratto_fine||c.contrattoFine||"";var n=document.getElementById("cliContrattoNote");if(n)n.value=c.contratto_note||c.contrattoNote||"";}
+function editCliente(id){var c=clienti.find(function(x){return x.id===id;});if(!c)return;document.getElementById("editClienteId").value=c.id;document.getElementById("cliNome").value=c.nome||"";document.getElementById("cliCodice").value=c.codice||"";document.getElementById("cliCitta").value=c.citta||"";document.getElementById("cliNote").value=c.note||"";var se=document.getElementById("cliSede");if(se)se.value=c.sede||"";var dip=document.getElementById("cliDipartimento");if(dip)dip.value=c.dipartimento||"";var a=document.getElementById("cliContrattoInizio");if(a)a.value=c.contratto_inizio||c.contrattoInizio||"";var b=document.getElementById("cliContrattoFine");if(b)b.value=c.contratto_fine||c.contrattoFine||"";var n=document.getElementById("cliContrattoNote");if(n)n.value=c.contratto_note||c.contrattoNote||"";}
 async function saveClienteToDb(row, id){
   var attempt=0;
   while(attempt<8){
@@ -2613,9 +2751,10 @@ async function saveClienteToDb(row, id){
 async function saveCliente(){
   if(!canManageClienti())return;
   var nome=reqNA(document.getElementById("cliNome").value),codice=reqNA(document.getElementById("cliCodice").value),citta=reqNA(document.getElementById("cliCitta").value),note=reqNA(document.getElementById("cliNote").value);
-  if(!nome||!codice||!citta||!note){alert("Nome, codice, città e note obbligatori. Usa N.A. se manca un dato.");return;}
+  if(!nome||!codice||!citta||!note){alert("Nome, codice, sede legale e note obbligatori. Usa N.A. se manca un dato.");return;}
   var id=document.getElementById("editClienteId").value;
   var row={nome:nome,codice:codice,citta:citta,note:note};
+  var sedeEl=document.getElementById("cliSede");if(sedeEl){var sv=(sedeEl.value||"").trim();if(sv)row.sede=sv;}
   var dipEl=document.getElementById("cliDipartimento");if(dipEl){var dv=(dipEl.value||"").trim();if(dv)row.dipartimento=dv;}
   var ind=document.getElementById("cliIndirizzo");if(ind){var iv=(ind.value||"").trim();if(iv)row.indirizzo=iv;}
   var ci=document.getElementById("cliContrattoInizio");var cf=document.getElementById("cliContrattoFine");var cn=document.getElementById("cliContrattoNote");
