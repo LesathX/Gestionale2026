@@ -93,6 +93,7 @@ body{font-family:Inter,system-ui,sans-serif;background:var(--cami-bg);color:#1e2
 .stat-red{color:#dc2626}.stat-orange{color:#ea580c}
 .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:50;padding:1rem}
 .modal-overlay.show{display:flex}
+#storicoInterventiModal.modal-overlay.show{z-index:200!important;position:fixed!important;display:flex!important}
 .modal{background:#fff;border-radius:1.1rem;width:100%;max-width:54rem;max-height:92vh;overflow-y:auto;box-shadow:0 25px 60px rgba(15,23,42,.25);border:1px solid rgba(226,232,240,.8)}
 .modal-lg{max-width:58rem}
 .modal-header{position:sticky;top:0;background:linear-gradient(180deg,#fff 70%,rgba(255,255,255,.95));padding:1rem 1.25rem;border-bottom:1px solid var(--cami-border);display:flex;align-items:center;justify-content:space-between;z-index:2}
@@ -997,7 +998,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
 
 
 
-<div id="storicoInterventiModal" class="modal-overlay"><div class="modal modal-lg">
+<div id="storicoInterventiModal" class="modal-overlay" style="z-index:200"><div class="modal modal-lg">
   <div class="modal-header"><h2>Storico Interventi</h2><button type="button" class="modal-close" onclick="closeStoricoInterventiModal()">&times;</button></div>
   <div class="modal-body">
     <p class="device-info">Vista in sola lettura: interventi <strong>aperti</strong>, <strong>completati</strong> e <strong>archiviati</strong>.</p>
@@ -4890,7 +4891,7 @@ async function renderInterventiAssegnati(){
     }else{
       h+='<button class="btn btn-secondary" style="padding:.25rem .5rem" onclick="toggleAssi(\''+a.id+'\')"><i class="fas fa-folder-open"></i> Riapri</button>';
     }
-    h+='<button class="btn btn-secondary" style="padding:.25rem .5rem" onclick="openStoricoInterventiModal()"><i class="fas fa-history"></i> Storico Interventi</button>';
+    h+='<button type="button" class="btn btn-secondary" style="padding:.25rem .5rem" onclick="try{window.openStoricoInterventiModal&&window.openStoricoInterventiModal()}catch(e){alert(e.message||e)}"><i class="fas fa-history"></i> Storico Interventi</button>';
     if(isSuper()||isBackOfficer()||isTecnico()){
       h+='<button class="btn btn-danger" style="padding:.25rem .5rem" onclick="deleteAssi(\''+a.id+'\')"><i class="fas fa-trash"></i> Elimina</button>';
     }
@@ -5390,35 +5391,49 @@ async function deleteAssi(id){
   try{await renderInterventiAssegnati();}catch(e){}
 }
 
+
 function closeStoricoInterventiModal(){
   var m=document.getElementById("storicoInterventiModal");
   if(m)m.classList.remove("show");
 }
 async function openStoricoInterventiModal(focusId){
-  window._siFocusId=focusId||null;
-  var m=document.getElementById("storicoInterventiModal");
-  if(!m){
-    alert("Modale Storico Interventi non trovata. Ricarica la pagina (Ctrl+F5) dopo aver aggiornato index.html.");
-    return;
+  try{
+    window._siFocusId=focusId||null;
+    var m=document.getElementById("storicoInterventiModal");
+    if(!m){
+      alert("Modale Storico Interventi assente nel HTML. Aggiorna index.html e fai Ctrl+F5.");
+      return;
+    }
+    m.style.zIndex="200";
+    m.classList.add("show");
+    var box=document.getElementById("siList");
+    if(box)box.innerHTML="Caricamento...";
+    await renderStoricoInterventi();
+  }catch(e){
+    console.error("openStoricoInterventiModal",e);
+    alert("Errore apertura Storico: "+(e&&e.message?e.message:e));
   }
-  m.classList.add("show");
-  try{await renderStoricoInterventi();}catch(e){console.error(e);var box=document.getElementById("siList");if(box)box.innerHTML='<p class="history-empty">Errore: '+(e.message||e)+'</p>';}
 }
-window.openStoricoInterventiModal=openStoricoInterventiModal;
-window.closeStoricoInterventiModal=closeStoricoInterventiModal;
-window.renderStoricoInterventi=renderStoricoInterventi;
 async function renderStoricoInterventi(){
   var box=document.getElementById("siList");
   if(!box)return;
   box.innerHTML="Caricamento...";
-  var list=await loadAssiFromDb(true); // include archived
+  var list=null;
+  try{
+    list=await loadAssiFromDb(true);
+  }catch(e){
+    box.innerHTML='<p class="history-empty">Errore caricamento: '+(e.message||e)+'</p>';
+    return;
+  }
   if(list===null){
     box.innerHTML='<div class="device-info">Tabella assegnazioni non disponibile.</div>';
     return;
   }
+  if(!Array.isArray(list))list=[];
   var fst=(document.getElementById("siFiltroStato")&&document.getElementById("siFiltroStato").value)||"";
   var q=((document.getElementById("siSearch")&&document.getElementById("siSearch").value)||"").toLowerCase().trim();
   list=list.filter(function(a){
+    if(!a)return false;
     var arch=!!(a.archived_at||a.deleted_at);
     if(fst==="open"&&(a.done||arch))return false;
     if(fst==="done"&&(!a.done||arch))return false;
@@ -5429,14 +5444,13 @@ async function renderStoricoInterventi(){
     }
     return true;
   });
-  // più recenti prima
   list.sort(function(a,b){return String(b.data||"").localeCompare(String(a.data||""));});
   if(!list.length){box.innerHTML='<p class="history-empty">Nessun intervento nello storico</p>';return;}
   var h="";
   list.forEach(function(a){
     var arch=!!(a.archived_at||a.deleted_at);
     var st=arch?'<span class="badge badge-rose">ARCHIVIATO</span>':(a.done?'<span class="badge badge-green">COMPLETATO</span>':'<span class="badge badge-amber">APERTO</span>');
-    var focus=window._siFocusId&&window._siFocusId===a.id?'border:2px solid #3b82f6;':'';
+    var focus=(window._siFocusId&&window._siFocusId===a.id)?'border:2px solid #3b82f6;':'';
     h+='<div class="oggi-item" style="'+focus+'opacity:'+(arch?'0.75':'1')+'">';
     h+='<div><strong>'+(a.acronimo||"")+' · '+(a.matricola||"")+'</strong> · '+clienteName(a.cliente_id)+' '+st;
     if(a.allegato_tipo)h+=' <span class="badge badge-blue">'+a.allegato_tipo+'</span>';
@@ -5449,6 +5463,11 @@ async function renderStoricoInterventi(){
   });
   box.innerHTML=h;
 }
+window.openStoricoInterventiModal=openStoricoInterventiModal;
+window.closeStoricoInterventiModal=closeStoricoInterventiModal;
+window.renderStoricoInterventi=renderStoricoInterventi;
+
+
 
 
 /* ===== Mappa sedi (n.9) ===== */
