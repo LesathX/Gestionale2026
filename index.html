@@ -1086,7 +1086,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
         <small class="hint">Precompilato dalla commessa, modificabile.</small>
       </div>
       <div class="form-group"><label>Sede</label><select id="niSede" onchange="fillNiDpc()"><option value="">Seleziona sede...</option></select></div>
-      <div class="form-group full"><label>Tipo intervento * <small style="font-weight:400;color:#64748b">(dalla commessa, modificabile)</small></label>
+      <div class="form-group full"><label>Tipo intervento * <small style="font-weight:400;color:#64748b">(solo tipi della commessa; puoi toglierne, non aggiungerne)</small></label>
         <div id="niTipoChecks" style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.35rem">
           <label class="check-option"><input type="checkbox" name="niTipo" value="Manutenzione ordinaria"> Manutenzione ordinaria</label>
           <label class="check-option"><input type="checkbox" name="niTipo" value="Manutenzione straordinaria"> Manutenzione straordinaria</label>
@@ -4712,66 +4712,97 @@ function setNiTipiSelected(arr){
   });
 }
 
+function parseCommTipi(c){
+  if(!c)return[];
+  var t=c.tipo_interventi||c.tipo_intervento||[];
+  if(typeof t==="string"){
+    try{var p=JSON.parse(t);t=Array.isArray(p)?p:t.split(",");}catch(e){t=t.split(",");}
+  }
+  if(!Array.isArray(t))t=[];
+  return t.map(function(x){return String(x||"").trim();}).filter(Boolean);
+}
+function parseCommEquipIds(c){
+  if(!c)return[];
+  var dpcIds=c.equip_ids||c.dpc_ids||[];
+  if(typeof dpcIds==="string"){try{dpcIds=JSON.parse(dpcIds);}catch(e){dpcIds=[];}}
+  if(!Array.isArray(dpcIds))dpcIds=[];
+  return dpcIds.map(String);
+}
+function applyNiTipiFromCommessa(allowedTipi){
+  var box=document.getElementById("niTipoChecks");
+  if(!box)return;
+  allowedTipi=allowedTipi||[];
+  // normalizza "Altro: xxx" -> base "Altro"
+  var allowedBase=allowedTipi.map(function(t){
+    if(/^Altro\s*:/i.test(t))return "Altro";
+    return t;
+  });
+  box.querySelectorAll('input[name="niTipo"]').forEach(function(cb){
+    var lab=cb.closest("label");
+    var ok=allowedBase.indexOf(cb.value)>=0;
+    if(ok){
+      if(lab)lab.style.display="";
+      cb.disabled=false;
+      cb.checked=true;
+    }else{
+      cb.checked=false;
+      cb.disabled=true;
+      if(lab)lab.style.display="none";
+    }
+  });
+  // se c'è Altro: specifica, mostra spec se presente
+  var altroSpec=allowedTipi.find(function(t){return /^Altro\s*:/i.test(t);});
+  if(altroSpec){
+    // keep checked Altro
+  }
+  // se nessun tipo in commessa, mostra tutti (retrocompat)
+  if(!allowedTipi.length){
+    box.querySelectorAll('input[name="niTipo"]').forEach(function(cb){
+      var lab=cb.closest("label");
+      if(lab)lab.style.display="";
+      cb.disabled=false;
+    });
+  }
+}
 function onNiCommessaChange(){
   var id=(document.getElementById("niCommessa")&&document.getElementById("niCommessa").value)||"";
   var c=(commesse||[]).find(function(x){return x.id===id;});
   var cliSel=document.getElementById("niCliente");
-  var tipoEl=document.getElementById("niTipo");
+  window._niCommessaEquipIds=null;
+  window._niCommessaTipi=null;
   if(!c){
     if(cliSel)cliSel.value="";
     setNiTipiSelected([]);
+    applyNiTipiFromCommessa([]);
     var ns=document.getElementById("niSede");
     if(ns){ns.innerHTML='<option value="">Seleziona sede...</option>';ns.disabled=true;}
     fillNiDpc();
     return;
   }
-  // cliente
   if(cliSel){
-    // ensure option exists
     var found=false;
     for(var i=0;i<cliSel.options.length;i++){if(cliSel.options[i].value===c.cliente_id){found=true;break;}}
     if(!found&&c.cliente_id){
       var o=document.createElement("option");o.value=c.cliente_id;o.textContent=clienteName(c.cliente_id);cliSel.appendChild(o);
     }
     cliSel.value=c.cliente_id||"";
+    cliSel.disabled=true; // cliente fisso dalla commessa
   }
-  // tutti i tipi della commessa, spuntati e modificabili
-  setNiTipiSelected(c.tipo_interventi||c.tipo_intervento||[]);
+  var tipi=parseCommTipi(c);
+  window._niCommessaTipi=tipi.slice();
+  applyNiTipiFromCommessa(tipi);
   onNiClienteChange();
-  // sede da commessa
   var ns=document.getElementById("niSede");
   if(ns&&c.sede){
-    // ensure option
     var has=false;
     for(var j=0;j<ns.options.length;j++){if(ns.options[j].value===c.sede){has=true;break;}}
     if(!has){var o2=document.createElement("option");o2.value=c.sede;o2.textContent=c.sede;ns.appendChild(o2);}
     ns.value=c.sede;
     ns.disabled=false;
   }
+  var dpcIds=parseCommEquipIds(c);
+  window._niCommessaEquipIds=dpcIds.slice();
   fillNiDpc();
-  // pre-check DPC della commessa
-  setTimeout(function(){
-    var dpcIds=c.equip_ids||c.dpc_ids||[];
-    if(typeof dpcIds==="string"){try{dpcIds=JSON.parse(dpcIds);}catch(e){dpcIds=[];}}
-    if(!Array.isArray(dpcIds))dpcIds=[];
-    document.querySelectorAll(".ni-dpc-cb, #niDpcList input[type=checkbox]").forEach(function(cb){
-      if(dpcIds.indexOf(cb.value)>=0||dpcIds.indexOf(cb.getAttribute("data-id"))>=0)cb.checked=true;
-    });
-    try{updateNiDpcCount&&updateNiDpcCount();}catch(e){}
-    try{
-      var cnt=document.getElementById("niDpcCount");
-      if(cnt){var n=document.querySelectorAll("#niDpcList input[type=checkbox]:checked").length;cnt.textContent="("+n+" selezionati)";}
-    }catch(e){}
-  },80);
-}
-async function openInterventiByCommessa(commId, numero){
-  if(!commId)return;
-  // apre Interventi assegnati filtrati per questa commessa
-  window.__filterCommessaId=commId;
-  window.__filterCommessaNumero=numero||"";
-  try{await ensureAssiCache();}catch(e){}
-  openInterventiAssegnatiModal(true);
-  setTimeout(function(){renderInterventiAssegnati();},50);
 }
 
 async function openNuovoInterventoModal(){
@@ -4886,18 +4917,40 @@ function fillNiDpc(){
   if(!box)return;
   box.innerHTML="";
   updateNiDpcCount();
-  if(!cid){box.innerHTML='<p class="hint">Seleziona prima un cliente</p>';return;}
-  var list=equipment.filter(function(e){
-    if(e.clienteId!==cid)return false;
-    if(sede&&String(e.sede||"").trim()!==sede)return false;
-    return true;
-  });
+  if(!cid){box.innerHTML='<p class="hint">Seleziona prima una commessa</p>';return;}
+  var allowed=window._niCommessaEquipIds;
+  // se commessa selezionata: SOLO i DPC della commessa (possono solo diminuire)
+  var list;
+  if(allowed&&allowed.length){
+    list=(equipment||[]).filter(function(e){return allowed.indexOf(String(e.id))>=0;});
+  }else if(allowed&&allowed.length===0&&document.getElementById("niCommessa")&&document.getElementById("niCommessa").value){
+    // commessa senza DPC collegati
+    box.innerHTML='<p class="hint">Questa commessa non ha DPC collegati. Aggiungili nella commessa prima di creare l\'intervento.</p>';
+    return;
+  }else{
+    // nessuna commessa: comportamento legacy (cliente/sede)
+    list=(equipment||[]).filter(function(e){
+      if(e.clienteId!==cid)return false;
+      if(sede&&String(e.sede||"").trim()!==sede)return false;
+      return true;
+    });
+  }
+  if(sede&&allowed&&allowed.length){
+    // filtro sede opzionale ancora applicabile, ma solo tra i DPC della commessa
+    var bySede=list.filter(function(e){return String(e.sede||"").trim()===sede;});
+    if(bySede.length)list=bySede;
+  }
   if(!list.length){
     box.innerHTML=sede
-      ?'<p class="hint">Nessun DPC per questa sede</p>'
-      :'<p class="hint">Nessun DPC per questo cliente</p>';
+      ?'<p class="hint">Nessun DPC della commessa per questa sede</p>'
+      :'<p class="hint">Nessun DPC disponibile</p>';
     return;
   }
+  list.sort(function(a,b){
+    var aa=(a.acronimo||"").localeCompare(b.acronimo||"","it");
+    if(aa)return aa;
+    return String(a.matricola||"").localeCompare(String(b.matricola||""),"it");
+  });
   list.forEach(function(e){
     var lab=(e.acronimo||"")+" · "+(e.matricola||"")+" · "+(e.sede||"")+(e.stato?" · "+e.stato:"");
     var searchKey=((e.acronimo||"")+" "+(e.matricola||"")+" "+(e.sede||"")+" "+(e.idDispositivo||"")).toLowerCase();
@@ -4905,9 +4958,26 @@ function fillNiDpc(){
     row.className="checkbox-row ni-dpc-row";
     row.style.cssText="display:flex;align-items:flex-start;gap:.4rem;padding:.35rem .25rem;border-bottom:1px solid #e2e8f0;cursor:pointer;font-size:.8rem";
     row.setAttribute("data-search",searchKey);
-    row.innerHTML='<input type="checkbox" class="ni-dpc-cb" value="'+e.id+'" onchange="updateNiDpcCount()" style="margin-top:.15rem"> <span>'+lab+'</span>';
+    // pre-selezionati tutti i DPC della commessa (si possono solo togliere)
+    var pre=allowed&&allowed.length?' checked':'';
+    row.innerHTML='<input type="checkbox" class="ni-dpc-cb" value="'+e.id+'"'+pre+' onchange="updateNiDpcCount()" style="margin-top:.15rem"> <span>'+lab+'</span>';
     box.appendChild(row);
   });
+  updateNiDpcCount();
+  var hint=document.getElementById("niDpcLimitHint");
+  if(!hint){
+    hint=document.createElement("small");
+    hint.id="niDpcLimitHint";
+    hint.className="hint";
+    hint.style.display="block";
+    hint.style.marginTop=".35rem";
+    if(box.parentNode)box.parentNode.appendChild(hint);
+  }
+  if(allowed&&allowed.length){
+    hint.textContent="DPC limitati a quelli della commessa ("+allowed.length+"). Puoi deselezionarne alcuni, non aggiungerne altri.";
+  }else{
+    hint.textContent="";
+  }
 }
 function filterNiDpcList(){
   var q=(document.getElementById("niDpcSearch").value||"").toLowerCase().trim();
@@ -4973,6 +5043,23 @@ async function saveNuovoIntervento(){
   var tipiNi=getNiTipiSelected();
   var tipo=tipiNi.join(", ");
   var tecs=getNiSelectedTecnici();
+  // vincoli commessa: tipi e DPC non possono superare quelli della commessa
+  if(window._niCommessaTipi&&window._niCommessaTipi.length){
+    var allowedT=window._niCommessaTipi.map(function(t){
+      if(/^Altro\s*:/i.test(t))return "Altro";
+      return t;
+    });
+    var badT=tipiNi.filter(function(t){
+      var base=/^Altro\s*:/i.test(t)?"Altro":t;
+      return allowedT.indexOf(base)<0&&allowedT.indexOf(t)<0;
+    });
+    if(badT.length){alert("Tipo non previsto dalla commessa: "+badT.join(", "));return;}
+  }
+  if(window._niCommessaEquipIds&&window._niCommessaEquipIds.length){
+    var badE=eids.filter(function(id){return window._niCommessaEquipIds.indexOf(String(id))<0;});
+    if(badE.length){alert("Hai selezionato DPC non presenti nella commessa. Non è consentito aggiungere DPC oltre quelli della commessa.");return;}
+  }
+
   var data=document.getElementById("niData").value;
   var note=(document.getElementById("niNote").value||"").trim();
   var commessaId=(document.getElementById("niCommessa")&&document.getElementById("niCommessa").value)||"";
