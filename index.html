@@ -987,7 +987,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
       </div>
       <div class="form-group"><label>Referente – nome</label>
         <input id="commRefNome" list="listCommRefNome" placeholder="scegli o digita" oninput="onCommRefNomeChange()" onchange="onCommRefNomeChange()">
-        <small class="hint">Suggerimenti dal cliente selezionato</small>
+        <small class="hint">Suggerimenti dal cliente e dalla sede selezionata</small>
       </div>
       <div class="form-group"><label>Referente – contatto</label>
         <input id="commRefContatto" list="listCommRefContatto" placeholder="tel / email">
@@ -2291,9 +2291,10 @@ function fillCommClienteFattSelect(selected){
   if(cur)sel.value=cur;
 }
 
-function collectClienteRefPairs(cid){
-  // mappa referente -> set contatti (dal cliente selezionato)
+function collectClienteRefPairs(cid, sedeFilter){
+  // mappa referente -> set contatti (cliente + opz. sede)
   var map={};
+  sedeFilter=String(sedeFilter||"").trim().toLowerCase();
   function add(ref, cont){
     ref=String(ref||"").trim();
     cont=String(cont||"").trim();
@@ -2302,16 +2303,33 @@ function collectClienteRefPairs(cid){
     if(cont)map[ref][cont]=1;
   }
   if(!cid)return map;
-  (equipment||[]).filter(function(e){return e.clienteId===cid;}).forEach(function(e){
+  (equipment||[]).filter(function(e){
+    if(e.clienteId!==cid)return false;
+    if(sedeFilter){
+      var se=String(e.sede||"").trim().toLowerCase();
+      if(se!==sedeFilter)return false;
+    }
+    return true;
+  }).forEach(function(e){
     add(e.responsabile, e.referenteContatto);
   });
-  (commesse||[]).filter(function(c){return c.cliente_id===cid||c.cliente_fatturazione_id===cid;}).forEach(function(c){
+  (commesse||[]).filter(function(c){
+    if(!(c.cliente_id===cid||c.cliente_fatturazione_id===cid))return false;
+    if(sedeFilter){
+      var se=String(c.sede||"").trim().toLowerCase();
+      if(!se||se!==sedeFilter)return false;
+    }
+    return true;
+  }).forEach(function(c){
     add(c.referente_nome, c.referente_contatto);
   });
-  // anagrafica cliente se presente
+  // anagrafica cliente: se sede scelta, solo se coincide
   var cli=(clienti||[]).find(function(c){return c.id===cid;});
   if(cli){
-    add(cli.referente||cli.responsabile, cli.referente_contatto||cli.telefono||cli.email);
+    var cliSede=String(cli.sede||"").trim().toLowerCase();
+    if(!sedeFilter||cliSede===sedeFilter){
+      add(cli.referente||cli.responsabile, cli.referente_contatto||cli.telefono||cli.email);
+    }
   }
   return map;
 }
@@ -2340,25 +2358,32 @@ function onCommClienteChange(){
       else ns.value="";
     }
   }
-  // referenti del solo cliente
-  try{
-    var pairs=collectClienteRefPairs(cid);
-    var refs=Object.keys(pairs).sort(function(a,b){return a.localeCompare(b,"it",{sensitivity:"base"});});
-    var rn=document.getElementById("commRefNome");
-    if(rn){
-      rn.setAttribute("list","listCommRefNome");
-      if(!document.getElementById("listCommRefNome")){
-        var dl=document.createElement("datalist");dl.id="listCommRefNome";document.body.appendChild(dl);
-      }
-      fillDatalist("listCommRefNome", refs);
-    }
-    // contatti: finché non c'è referente, lista vuota (o tutti del cliente se preferisci solo dopo scelta)
-    onCommRefNomeChange();
-  }catch(e){}
+  // referenti: cliente + sede selezionata
+  try{refreshCommReferenti();}catch(e){}
   fillCommDpcList();
+}
+function getCommSedeFilter(){
+  var ns=document.getElementById("commSede");
+  return ns?(ns.value||"").trim():"";
+}
+function refreshCommReferenti(){
+  var cid=document.getElementById("commCliente")?document.getElementById("commCliente").value:"";
+  var sede=getCommSedeFilter();
+  var pairs=collectClienteRefPairs(cid, sede);
+  var refs=Object.keys(pairs).sort(function(a,b){return a.localeCompare(b,"it",{sensitivity:"base"});});
+  var rn=document.getElementById("commRefNome");
+  if(rn){
+    rn.setAttribute("list","listCommRefNome");
+    if(!document.getElementById("listCommRefNome")){
+      var dl=document.createElement("datalist");dl.id="listCommRefNome";document.body.appendChild(dl);
+    }
+    fillDatalist("listCommRefNome", refs);
+  }
+  onCommRefNomeChange();
 }
 function onCommRefNomeChange(){
   var cid=document.getElementById("commCliente")?document.getElementById("commCliente").value:"";
+  var sede=getCommSedeFilter();
   var ref=(document.getElementById("commRefNome")&&document.getElementById("commRefNome").value||"").trim();
   var rc=document.getElementById("commRefContatto");
   if(!rc)return;
@@ -2368,24 +2393,24 @@ function onCommRefNomeChange(){
   }
   var contatti=[];
   if(cid&&ref){
-    var pairs=collectClienteRefPairs(cid);
-    // match case-insensitive sul nome referente
+    var pairs=collectClienteRefPairs(cid, sede);
     Object.keys(pairs).forEach(function(k){
       if(k.toLowerCase()===ref.toLowerCase()||k.toLowerCase().indexOf(ref.toLowerCase())===0){
         Object.keys(pairs[k]).forEach(function(c){contatti.push(c);});
       }
     });
   }
-  // dedup
   var seen={}, uniq=[];
   contatti.forEach(function(c){var k=c.toLowerCase();if(!seen[k]){seen[k]=1;uniq.push(c);}});
   fillDatalist("listCommRefContatto", uniq);
-  // se un solo contatto noto, suggeriscilo (non sovrascrivere se già compilato con altro)
   if(uniq.length===1){
     if(!rc.value||uniq.indexOf(rc.value)>=0)rc.value=uniq[0];
   }
 }
-function onCommSedeChange(){fillCommDpcList();}
+function onCommSedeChange(){
+  try{refreshCommReferenti();}catch(e){}
+  fillCommDpcList();
+}
 function fillCommDpcList(selectedIds){
   var box=document.getElementById("commDpcList");
   if(!box)return;
