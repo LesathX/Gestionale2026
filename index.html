@@ -4362,16 +4362,11 @@ function onImportNomeModeChange(){
   var fromFile=(window._importFileBaseName)||"";
   var fromPreview=(window._importPreview&&window._importPreview.nome)||"";
   var suggested=fromFile||fromPreview||"";
-  if(mode==="file"){
-    if(suggested)nomeEl.value=suggested;
-    nomeEl.readOnly=true;
-    nomeEl.style.background="#eff6ff";
-  }else{
-    nomeEl.readOnly=false;
-    nomeEl.style.background="#fff";
-    if(nomeEl.value===fromFile||nomeEl.value===fromPreview){
-      // lascia il valore, utente può modificare
-    }
+  // sempre modificabile
+  nomeEl.readOnly=false;
+  nomeEl.style.background="#fff";
+  if(mode==="file"&&suggested){
+    nomeEl.value=suggested;
   }
   var lab=document.getElementById("importNomeFromFileLabel");
   if(lab)lab.textContent=suggested?('« '+suggested+' »'):"(titolo file non disponibile)";
