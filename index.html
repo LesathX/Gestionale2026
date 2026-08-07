@@ -4822,21 +4822,73 @@ async function runExcelImport(file,clienteId,dpcMode){
       if(cami&&cami.mat>=0||cami&&cami.id>=0){
         // ===== IMPORT FORMATO CAMI =====
         if(!confirm("Formato CAMI rilevato (filtri a stadi).\nCliente: "+clienteName(clienteId)+"\nDati da riga "+(cami.dataStart+1)+"\nStadi trovati: "+Object.keys(cami.stages).join(", ")+"\nProcedere?"))return;
+        var skipEmpty=0,skipDup=0;
+        function isPlaceholderId(v){
+          var t=String(v||"").trim().toLowerCase();
+          return !t||t==="-"||t==="n.d."||t==="n.a."||t==="nd"||t==="na"||t==="null"||t==="undefined";
+        }
+        // chiavi già viste in QUESTO import (evita doppioni nel file)
+        var seenKeys={};
         for(var r=cami.dataStart;r<rows.length;r++){
           var row=rows[r];
-          if(!row||!row.length){skip++;continue;}
-          var mat=cell(row,cami.mat), idd=cell(row,cami.id);
-          if(!mat&&!idd){skip++;continue;}
-          if(isEmptyFilterVal(mat)&&isEmptyFilterVal(idd)){skip++;continue;}
-          if(!mat||isEmptyFilterVal(mat))mat="MAT-"+(r+1);
-          if(!idd||isEmptyFilterVal(idd))idd="ID-"+(r+1);
+          if(!row||!row.length){skipEmpty++;continue;}
+          // riga tutta vuota?
+          var anyCell=false;
+          for(var ci=0;ci<row.length;ci++){
+            if(String(row[ci]==null?"":row[ci]).trim()){anyCell=true;break;}
+          }
+          if(!anyCell){skipEmpty++;continue;}
+
+          var matRaw=cell(row,cami.mat), iddRaw=cell(row,cami.id);
+          // senza matricola E senza identificativo reali → salta (non è un DPC)
+          if(isPlaceholderId(matRaw)&&isPlaceholderId(iddRaw)){
+            // potrebbe essere riga di sola formattazione: salta silenzioso
+            skipEmpty++;
+            continue;
+          }
+          var mat=isPlaceholderId(matRaw)?("MAT-R"+(r+1)):matRaw.trim();
+          var idd=isPlaceholderId(iddRaw)?("ID-R"+(r+1)):iddRaw.trim();
           var sedeImp=(cell(row,cami.sede)||"N.A.").trim();
           var sedeImpKey=sedeImp.toLowerCase();
-          var already=equipment.find(function(x){
-            return x.clienteId===clienteId&&String(x.sede||"").trim().toLowerCase()===sedeImpKey&&
-              (String(x.matricola||"").toLowerCase()===mat.toLowerCase()||String(x.idDispositivo||"").toLowerCase()===idd.toLowerCase());
-          });
-          if(already){skip++;errors.push("Riga "+(r+1)+": duplicato "+mat+" / "+idd);continue;}
+
+          // Chiave duplicato:
+          // 1) se ID reale → cliente+ID (univoco)
+          // 2) se solo matricola reale → cliente+sede+matricola
+          // 3) se entrambi placeholder già gestiti sopra
+          var dupKey="";
+          if(!isPlaceholderId(iddRaw)){
+            dupKey="id:"+String(idd).toLowerCase();
+          }else if(!isPlaceholderId(matRaw)){
+            dupKey="mat:"+sedeImpKey+"|"+String(mat).toLowerCase();
+          }else{
+            dupKey="row:"+r;
+          }
+
+          if(seenKeys[dupKey]){
+            skipDup++;
+            if(errors.length<30)errors.push("Riga "+(r+1)+": duplicato nel file ("+mat+" / "+idd+")");
+            continue;
+          }
+          // duplicato già in database?
+          var already=null;
+          if(!isPlaceholderId(iddRaw)){
+            already=equipment.find(function(x){
+              return x.clienteId===clienteId&&String(x.idDispositivo||"").toLowerCase()===String(idd).toLowerCase();
+            });
+          }else if(!isPlaceholderId(matRaw)){
+            already=equipment.find(function(x){
+              return x.clienteId===clienteId
+                &&String(x.sede||"").trim().toLowerCase()===sedeImpKey
+                &&String(x.matricola||"").toLowerCase()===String(mat).toLowerCase()
+                &&isPlaceholderId(x.idDispositivo);
+            });
+          }
+          if(already){
+            skipDup++;
+            if(errors.length<30)errors.push("Riga "+(r+1)+": già presente in anagrafica ("+mat+" / "+idd+")");
+            continue;
+          }
+          seenKeys[dupKey]=1;
 
           // tipi attività
           var attRaw=cell(row,cami.attivita);
@@ -4955,8 +5007,15 @@ async function runExcelImport(file,clienteId,dpcMode){
             else ok++;
           }else ok++;
         }
+        skip=skipEmpty+skipDup;
         await logAudit("IMPORT",null,"Import CAMI Excel -> "+clienteName(clienteId)+" - "+ok+" DPC");
-        alert("Import CAMI completato\n\nInseriti: "+ok+"\nSaltati: "+skip+"\nCon sistema filtrante: "+withFiltro+"\nStadi filtro OK/in regola: "+okF+"\nStadi filtro scaduti: "+scadutiF+(errors.length?"\n\nErrori:\n"+errors.slice(0,10).join("\n"):""));
+        alert("Import CAMI completato\n\nInseriti: "+ok+
+          "\nDuplicati saltati: "+skipDup+
+          "\nRighe vuote/ignorate: "+skipEmpty+
+          "\nCon sistema filtrante: "+withFiltro+
+          "\nStadi filtro OK/in regola: "+okF+
+          "\nStadi filtro scaduti: "+scadutiF+
+          (errors.length?"\n\nDettagli (max 15):\n"+errors.slice(0,15).join("\n"):""));
         toast("Import: "+ok+" DPC");
         await loadAll();
         return;
