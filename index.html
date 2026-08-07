@@ -804,7 +804,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
 
     <label class="radio-block"><input type="radio" name="importClienteMode" value="new" onchange="toggleImportClienteMode()"> Nuovo cliente</label>
     <div id="importNewWrap" style="display:none;margin:.4rem 0 .5rem .25rem;padding:.65rem .75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:.5rem">
-      <div class="reminder-box">Tutti obbligatori. Usa N.A. se manca un dato.</div>
+      <div class="reminder-box">Obbligatori: Nome e Codice. Sede legale e Note sono opzionali.</div>
       <div class="form-group" style="margin:.5rem 0">
         <label style="font-weight:700;margin-bottom:.4rem;display:block;color:#1e3a5f">Nome del nuovo cliente</label>
         <label class="radio-block" style="margin:.25rem 0;padding:.35rem .45rem;border:1px solid #bfdbfe;border-radius:.4rem;background:#eff6ff">
@@ -820,8 +820,8 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
       <div class="form-grid" style="grid-template-columns:1fr 1fr">
         <div class="form-group"><label>Nome *</label><input id="importNewNome" placeholder="nome cliente"></div>
         <div class="form-group"><label>Codice *</label><input id="importNewCodice" placeholder="progressivo"></div>
-        <div class="form-group"><label>Sede legale *</label><input id="importNewCitta" placeholder="città / sede legale"></div>
-        <div class="form-group"><label>Note *</label><input id="importNewNote" placeholder="N.A. o note"></div>
+        <div class="form-group"><label>Sede legale</label><input id="importNewCitta" placeholder="città / sede legale (opzionale)"></div>
+        <div class="form-group"><label>Note</label><input id="importNewNote" placeholder="opzionale"></div>
         <div class="form-group"><label>Sede</label><input id="importNewSede" placeholder="es. Casaccia (RM)"></div>
         <div class="form-group"><label>Dipartimento</label><input id="importNewDipartimento" placeholder="opzionale"></div>
       </div>
@@ -4369,7 +4369,7 @@ function onImportNomeModeChange(){
     nomeEl.value=suggested;
   }
   var lab=document.getElementById("importNomeFromFileLabel");
-  if(lab)lab.textContent=suggested?('« '+suggested+' »'):"(titolo file non disponibile)";
+  if(lab)lab.textContent=suggested?('« '+suggested+' » — puoi modificarlo sotto'):"(titolo file non disponibile)";
 }
 
 function toggleImportClienteMode(){
@@ -4512,12 +4512,12 @@ async function confirmImportCliente(){
       if(!confirm("SOVRASCRIVI i DPC di \""+nome+"\"?\n\nVerranno eliminati "+nDpc+" DPC già presenti (con storico collegato) e sostituiti con quelli del file Excel.\n\nConfermi?"))return;
     }
   }else{
-    var nome=reqNA(document.getElementById("importNewNome").value);
-    var codice=reqNA(document.getElementById("importNewCodice").value);
-    var citta=reqNA(document.getElementById("importNewCitta").value);
-    var note=reqNA(document.getElementById("importNewNote").value);
-    if(!nome||!codice||!citta||!note){alert("Nome, codice, sede legale e note sono obbligatori (o N.A.)");return;}
-    var row={nome:nome,codice:codice,citta:citta,note:note};
+    var nome=(document.getElementById("importNewNome").value||"").trim();
+    var codice=(document.getElementById("importNewCodice").value||"").trim();
+    var citta=(document.getElementById("importNewCitta").value||"").trim();
+    var note=(document.getElementById("importNewNote").value||"").trim();
+    if(!nome||!codice){alert("Nome e Codice sono obbligatori");return;}
+    var row={nome:nome,codice:codice,citta:citta||null,note:note||null};
     var se=document.getElementById("importNewSede");if(se&&(se.value||"").trim())row.sede=(se.value||"").trim();
     var dip=document.getElementById("importNewDipartimento");if(dip&&(dip.value||"").trim())row.dipartimento=(dip.value||"").trim();
     var res=await sb.from("clienti").insert([row]).select();
