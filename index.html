@@ -4646,49 +4646,80 @@ async function runExcelImport(file,clienteId,dpcMode){
         if(map.cadenza<0)map.cadenza=colIn(hS,["cadenza"]);
         // ultima attività: preferisci colonna DATA sotto "ULTIMA ATTIVITÀ"
         // In file: rowAcro col19 area = ULTIMA ATTIVITÀ, rowSub col19 = DATA
-        // Trova blocchi stadio dalla riga acronimo
+        // Trova blocchi stadio (1–4) senza sovrapporre le colonne
         var stageStarts=[];
+        function isStadioHeader(x,n){
+          x=String(x||"");
+          // es. "1° stadio", "1o stadio", "3°stadio", "stadio 1"
+          var re=new RegExp("(?:^|[\\s])"+n+"[\\s°ºo.\\-]*stadio|^stadio[\\s°ºo.\\-]*"+n+"(?:\\s|$)");
+          return re.test(x)||x===(n+" stadio");
+        }
         for(var i=0;i<hA.length;i++){
           var x=normalizeHeader(hA[i]);
-          if(/^1[\s°ºo.\-]*stadio/.test(x)||x==="1 stadio")stageStarts.push({n:1,i:i});
-          else if(/^2[\s°ºo.\-]*stadio/.test(x)||x==="2 stadio")stageStarts.push({n:2,i:i});
-          else if(/^3[\s°ºo.\-]*stadio/.test(x)||x==="3 stadio")stageStarts.push({n:3,i:i});
-          else if(/^4[\s°ºo.\-]*stadio/.test(x)||x==="4 stadio")stageStarts.push({n:4,i:i});
-        }
-        // se non trovati, cerca pattern "codice filtro" ripetuti sulla sub-row
-        if(!stageStarts.length){
-          var codIdxs=[];
-          for(var i=0;i<hS.length;i++){
-            var x=normalizeHeader(hS[i]);
-            if(x.indexOf("codice")>-1&&(x.indexOf("filtro")>-1||x==="codice"))codIdxs.push(i);
+          if(!x)continue;
+          for(var n=1;n<=4;n++){
+            if(isStadioHeader(x,n)){
+              // evita duplicati stesso numero
+              if(!stageStarts.some(function(s){return s.n===n;}))stageStarts.push({n:n,i:i});
+            }
           }
-          codIdxs.forEach(function(ci,idx){if(idx<4)stageStarts.push({n:idx+1,i:ci});});
         }
-        // per ogni stadio, mappa le 10 sotto-colonne relative a partire da stage start
-        // Ordine atteso: codice, misure, tipo, qty, tipologia P/M, correlazione, data, durata, prox, status
+        // Metodo robusto: tutte le colonne "codice filtro" sulla sub-riga = inizio stadi
+        var codIdxs=[];
+        for(var i=0;i<hS.length;i++){
+          var x=normalizeHeader(hS[i]);
+          if(!x)continue;
+          // "codice filtro" / "codice" in zona filtri (dopo presenza sistema)
+          if(x.indexOf("codice")>-1&&(x.indexOf("filtro")>-1||x==="codice"))codIdxs.push(i);
+        }
+        // se abbiamo trovato 2+ codici filtro, preferisci questo elenco (più affidabile)
+        if(codIdxs.length>=1){
+          var fromCod=[];
+          codIdxs.forEach(function(ci,idx){
+            if(idx<4)fromCod.push({n:idx+1,i:ci});
+          });
+          // se stageStarts ha meno voci, usa fromCod
+          if(fromCod.length>=stageStarts.length)stageStarts=fromCod;
+        }
+        stageStarts.sort(function(a,b){return a.i-b.i;});
+        // rinumera in ordine di colonna 1..n
+        stageStarts.forEach(function(ss,idx){ss.n=idx+1;});
+
+        // per ogni stadio: intervallo [base, nextBase) senza sconfinare nello stadio successivo
         var stages={};
-        stageStarts.forEach(function(ss){
+        stageStarts.forEach(function(ss,idx){
           var base=ss.i;
-          // se sub-row ha "codice filtro" esattamente a base, usa offsets standard
-          var subMap={codice:base,misure:base+1,tipo:base+2,qty:base+3,tipologia:base+4,correlazione:base+5,data:base+6,durata:base+7,prox:base+8,status:base+9};
-          // raffina cercando nella sub-row nell'intervallo [base, base+12)
-          for(var k=base;k<Math.min(base+12,hS.length);k++){
+          var nextBase=(idx+1<stageStarts.length)?stageStarts[idx+1].i:(base+10);
+          var end=Math.min(nextBase, base+12, hS.length);
+          var subMap={
+            codice:base,
+            misure:base+1<end?base+1:base,
+            tipo:base+2<end?base+2:base,
+            qty:base+3<end?base+3:base,
+            tipologia:base+4<end?base+4:base,
+            correlazione:base+5<end?base+5:base,
+            data:base+6<end?base+6:base,
+            durata:base+7<end?base+7:base,
+            prox:base+8<end?base+8:base,
+            status:base+9<end?base+9:base
+          };
+          for(var k=base;k<end;k++){
             var x=normalizeHeader(hS[k]);
             if(!x)continue;
             if(x.indexOf("codice")>-1)subMap.codice=k;
             else if(x.indexOf("misure")>-1)subMap.misure=k;
-            else if(x==="tipo"||x.indexOf("tipo     ")===0)subMap.tipo=k;
+            else if(x==="tipo"||/^tipo\b/.test(x))subMap.tipo=k;
             else if(x.indexOf("q.ta")>-1||x.indexOf("qta")>-1||x.indexOf("quantita")>-1)subMap.qty=k;
-            else if(x.indexOf("tipologia")>-1||x.indexOf("particellare")>-1)subMap.tipologia=k;
+            else if(x.indexOf("tipologia")>-1||x.indexOf("particellare")>-1||x.indexOf("molecolare")>-1)subMap.tipologia=k;
             else if(x.indexOf("correlazione")>-1)subMap.correlazione=k;
-            else if(x.indexOf("data")>-1&&x.indexOf("install")>-1)subMap.data=k;
-            else if(x.indexOf("data")>-1&&subMap.data===base+6)subMap.data=k;
+            else if(x.indexOf("data")>-1)subMap.data=k;
             else if(x.indexOf("durata")>-1)subMap.durata=k;
             else if(x.indexOf("prox")>-1||x.indexOf("sostituz")>-1)subMap.prox=k;
             else if(x.indexOf("status")>-1||x==="stato")subMap.status=k;
           }
           stages[ss.n]=subMap;
         });
+        console.log("[import CAMI] stadi rilevati:",Object.keys(stages).length,stageStarts.map(function(s){return "S"+s.n+"@col"+(s.i+1);}).join(", "));
         // accessori: se header "SEZIONE DATI ACCESSORI" o "ACCESSORI"
         if(map.acc<0){
           for(var i=0;i<hA.length;i++){
@@ -4805,8 +4836,10 @@ async function runExcelImport(file,clienteId,dpcMode){
             var durata=cell(row,sc.durata);
             var prox=parseExcelDate(cell(row,sc.prox));
             var statusRaw=cell(row,sc.status);
-            if(isEmptyFilterVal(codice)&&isEmptyFilterVal(misure)&&isEmptyFilterVal(tipol)&&isEmptyFilterVal(dataInst)&&isEmptyFilterVal(prox))return;
-            if(isEmptyFilterVal(codice)&&isEmptyFilterVal(misure))return;
+            // salta solo se TUTTI i campi utili sono vuoti
+            if(isEmptyFilterVal(codice)&&isEmptyFilterVal(misure)&&isEmptyFilterVal(tipol)&&isEmptyFilterVal(tipo)&&isEmptyFilterVal(dataInst)&&isEmptyFilterVal(prox)&&isEmptyFilterVal(qty))return;
+            // codice "-" da solo senza altri dati → vuoto
+            if(isEmptyFilterVal(codice)&&isEmptyFilterVal(misure)&&isEmptyFilterVal(tipol)&&isEmptyFilterVal(tipo)&&!dataInst&&!prox)return;
             if(!prox&&dataInst&&durata)prox=calcProx(dataInst,durata)||"";
             var st={
               codice:isEmptyFilterVal(codice)?"":codice,
