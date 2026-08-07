@@ -809,8 +809,12 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
         <input id="clientiListSearch" placeholder="Cerca cliente..." oninput="renderClienti()" style="width:100%;padding:.5rem .5rem .5rem 2rem;border:1px solid #cbd5e1;border-radius:.45rem">
       </div>
       <button class="btn btn-primary" type="button" onclick="openQuickClienteModal('lista')"><i class="fas fa-plus"></i> Nuovo cliente</button>
+      <button type="button" class="btn btn-danger" id="btnDeleteClientiSelected" onclick="deleteClientiSelected()"><i class="fas fa-trash"></i> Elimina selezionati</button>
     </div>
-    <table class="users-table"><thead><tr><th>Nome</th><th>Codice</th><th>Sede legale</th><th>Sede</th><th>Dipartimento</th><th>DPC</th><th></th></tr></thead><tbody id="clientiTableBody"></tbody></table>
+    <table class="users-table"><thead><tr>
+      <th style="width:36px"><input type="checkbox" id="clientiSelectAll" title="Seleziona tutti" onclick="toggleClientiSelectAll(this.checked)"></th>
+      <th>Nome</th><th>Codice</th><th>Sede legale</th><th>Sede</th><th>Dipartimento</th><th>DPC</th><th></th>
+    </tr></thead><tbody id="clientiTableBody"></tbody></table>
   </div>
 </div></div>
 
@@ -2969,7 +2973,9 @@ function renderClienti(){
     }
     var archived=!!c.deleted_at;
     var nDpc=countDpc(c.id);
+    var canSel=isSuper()||canDeleteClienti();
     html+="<tr style='"+(archived?"opacity:.55":"")+"'>";
+    html+='<td><input type="checkbox" class="cli-sel-cb" value="'+c.id+'" '+(canSel?"":"disabled ")+'data-nome="'+String(c.nome||"").replace(/"/g,"&quot;")+'"></td>';
     html+="<td>"+(c.nome||"-")+(archived?" <span class=\"badge badge-rose\">ARCHIVIATO</span>":"")+"</td>";
     html+="<td>"+(c.codice||"-")+"</td>";
     html+="<td>"+(c.citta||"-")+"</td>";
@@ -2986,7 +2992,65 @@ function renderClienti(){
     }
     html+="</td></tr>";
   });
-  document.getElementById("clientiTableBody").innerHTML=html||"<tr><td colspan='6'>Nessun cliente</td></tr>";
+  document.getElementById("clientiTableBody").innerHTML=html||"<tr><td colspan='8'>Nessun cliente</td></tr>";
+  var sa=document.getElementById("clientiSelectAll");if(sa)sa.checked=false;
+}
+function toggleClientiSelectAll(on){
+  document.querySelectorAll("#clientiTableBody .cli-sel-cb:not(:disabled)").forEach(function(cb){cb.checked=!!on;});
+}
+async function deleteClientiSelected(){
+  if(!(isSuper()||canDeleteClienti())){alert("Permesso negato");return;}
+  var ids=[];
+  document.querySelectorAll("#clientiTableBody .cli-sel-cb:checked").forEach(function(cb){ids.push(cb.value);});
+  if(!ids.length){alert("Seleziona almeno un cliente");return;}
+  var list=[];
+  ids.forEach(function(id){
+    var c=(clientiAll||[]).find(function(x){return x.id===id;})||clienti.find(function(x){return x.id===id;});
+    if(c)list.push(c);
+  });
+  if(!list.length){alert("Nessun cliente trovato");return;}
+  var totDpc=0;
+  list.forEach(function(c){totDpc+=countDpc(c.id);});
+  var msg="ELIMINAZIONE DEFINITIVA di "+list.length+" cliente/i\n\n"+
+    list.map(function(c){return "• "+(c.nome||"?")+" ("+countDpc(c.id)+" DPC)";}).join("\n")+
+    "\n\nVerranno cancellati anche:\n• tutti i DPC collegati\n• manutenzioni e report\n• interventi assegnati\n• commesse del cliente\n\nQuesta operazione NON è recuperabile.\n\nConfermi?";
+  if(!confirm(msg))return;
+  if(totDpc>0||list.length>1){
+    var conf=prompt("Per confermare digita: CANCELLA_CLIENTI");
+    if(String(conf||"").trim().toUpperCase()!=="CANCELLA_CLIENTI"){toast("Annullato");return;}
+  }
+  toast("Eliminazione in corso...");
+  var ok=0,err=[];
+  for(var i=0;i<list.length;i++){
+    var c=list[i];
+    var id=c.id;
+    var nome=c.nome||"cliente";
+    try{
+      var dpcList=equipment.filter(function(e){return e.clienteId===id;});
+      var eids=dpcList.map(function(e){return e.id;});
+      for(var j=0;j<eids.length;j++){
+        var eid=eids[j];
+        try{await sb.from("manutenzioni").delete().eq("equip_id",eid);}catch(ex){}
+        try{await sb.from("report").delete().eq("equip_id",eid);}catch(ex){}
+        try{await sb.from("comments").delete().eq("equip_id",eid);}catch(ex){}
+      }
+      try{await sb.from("assegnazioni").delete().eq("cliente_id",id);}catch(ex){}
+      try{await sb.from("commesse").delete().eq("cliente_id",id);}catch(ex){}
+      try{await sb.from("commesse").delete().eq("cliente_fatturazione_id",id);}catch(ex){}
+      try{await sb.from("tecnico_clienti").delete().eq("cliente_id",id);}catch(ex){}
+      try{await sb.from("users").update({cliente_id:null}).eq("cliente_id",id);}catch(ex){}
+      try{await sb.from("equipment").delete().eq("cliente_id",id);}catch(ex){}
+      var resC=await sb.from("clienti").delete().eq("id",id);
+      if(resC.error)err.push(nome+": "+resC.error.message);
+      else ok++;
+    }catch(ex){err.push(nome+": "+(ex.message||ex));}
+  }
+  try{await logAudit("DELETE",null,"Eliminati "+ok+" clienti (bulk, cascata interventi/commesse/DPC)");}catch(e){}
+  toast("Eliminati: "+ok+(err.length?" · errori: "+err.length:""));
+  if(err.length)alert("Errori:\n"+err.slice(0,10).join("\n"));
+  else if(ok)alert("Eliminazione completata: "+ok+" cliente/i rimossi con tutti i dati collegati.");
+  await loadAll();
+  renderClienti();
 }
 function editCliente(id){var c=clienti.find(function(x){return x.id===id;});if(!c)return;document.getElementById("editClienteId").value=c.id;document.getElementById("cliNome").value=c.nome||"";document.getElementById("cliCodice").value=c.codice||"";document.getElementById("cliCitta").value=c.citta||"";document.getElementById("cliNote").value=c.note||"";var se=document.getElementById("cliSede");if(se)se.value=c.sede||"";var dip=document.getElementById("cliDipartimento");if(dip)dip.value=c.dipartimento||"";var a=document.getElementById("cliContrattoInizio");if(a)a.value=c.contratto_inizio||c.contrattoInizio||"";var b=document.getElementById("cliContrattoFine");if(b)b.value=c.contratto_fine||c.contrattoFine||"";var n=document.getElementById("cliContrattoNote");if(n)n.value=c.contratto_note||c.contrattoNote||"";}
 async function saveClienteToDb(row, id){
@@ -3099,8 +3163,10 @@ async function purgeClientePermanente(id){
     try{var r1=await sb.from("manutenzioni").delete().eq("equip_id",eid);if(r1.error)errors.push("manutenzioni "+eid+": "+r1.error.message);}catch(e){errors.push(String(e));}
     try{var r2=await sb.from("report").delete().eq("equip_id",eid);if(r2.error)errors.push("report "+eid+": "+r2.error.message);}catch(e){errors.push(String(e));}
   }
-  // interventi / assegnazioni del cliente
+  // interventi / assegnazioni / commesse del cliente
   try{var r3=await sb.from("assegnazioni").delete().eq("cliente_id",id);if(r3.error)errors.push("assegnazioni: "+r3.error.message);}catch(e){}
+  try{var rC=await sb.from("commesse").delete().eq("cliente_id",id);if(rC.error)errors.push("commesse: "+rC.error.message);}catch(e){}
+  try{await sb.from("commesse").delete().eq("cliente_fatturazione_id",id);}catch(e){}
   try{await sb.from("tecnico_clienti").delete().eq("cliente_id",id);}catch(e){}
   try{await sb.from("users").update({cliente_id:null}).eq("cliente_id",id);}catch(e){}
   // equipment
