@@ -993,11 +993,15 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
       <div class="form-group full" id="wrapUserCliente" style="display:none"><label>Cliente (legacy, opzionale)</label><select id="userClienteId"><option value="">- nessuno -</option></select></div>
       <div class="form-group full" id="wrapUserClientiMulti" style="display:none"><label>Clienti assegnati al tecnico (Ctrl/Cmd per multipli)</label><select id="userClientiMulti" multiple size="6" style="height:auto;min-height:120px"></select><small class="hint">Solo per ruolo Tecnico. Usa anche la sezione «Assegna tecnico».</small></div>
     </div>
-    <div class="form-actions" style="justify-content:flex-start">
+    <div class="form-actions" style="justify-content:flex-start;flex-wrap:wrap;gap:.4rem">
       <button class="btn btn-primary" onclick="saveUser()">Salva</button>
       <button class="btn-cancel" onclick="resetUserForm()">Nuovo</button>
+      <button type="button" class="btn btn-danger" id="btnDeleteUsersSelected" onclick="deleteUsersSelected()" style="margin-left:auto"><i class="fas fa-user-minus"></i> Elimina selezionati</button>
     </div>
-    <table class="users-table"><thead><tr><th>User</th><th>Nome</th><th>Ruolo</th><th>Cliente</th><th></th></tr></thead><tbody id="usersTableBody"></tbody></table>
+    <table class="users-table"><thead><tr>
+      <th style="width:36px"><input type="checkbox" id="usersSelectAll" title="Seleziona tutti" onclick="toggleUsersSelectAll(this.checked)"></th>
+      <th>User</th><th>Nome</th><th>Ruolo</th><th>Cliente</th><th></th>
+    </tr></thead><tbody id="usersTableBody"></tbody></table>
   </div>
 </div></div>
 
@@ -3194,9 +3198,55 @@ function renderUsers(){
     var cliTxt=ids.length?ids.join(", "):(clienteName(u.cliente_id)||"-");
     var canDel=isSuper()&&u.username!=="admin"&&u.id!==(currentUser&&currentUser.id);
     if(isBackOfficer()&&!isSuper()&&normalizeRole(u.role)==="tecnico")canDel=u.id!==(currentUser&&currentUser.id);
-    html+="<tr><td>"+u.username+"</td><td>"+(u.nome||"-")+"</td><td>"+roleLabel(u.role)+"</td><td>"+cliTxt+'</td><td><button class="btn-icon edit" onclick="editUser(\''+u.id+'\')"><i class="fas fa-pen"></i></button> '+(canDel?'<button class="btn-icon delete" onclick="deleteUser(\''+u.id+'\')"><i class="fas fa-trash"></i></button>':"")+"</td></tr>";
+    var canSel=canDel; // selezionabile solo se eliminabile
+    html+="<tr>"+
+      '<td><input type="checkbox" class="user-sel-cb" value="'+u.id+'" '+(canSel?"":"disabled ")+'data-username="'+String(u.username||"").replace(/"/g,"&quot;")+'"></td>'+
+      "<td>"+u.username+"</td><td>"+(u.nome||"-")+"</td><td>"+roleLabel(u.role)+"</td><td>"+cliTxt+'</td><td><button class="btn-icon edit" onclick="editUser(\''+u.id+'\')"><i class="fas fa-pen"></i></button> '+(canDel?'<button class="btn-icon delete" onclick="deleteUser(\''+u.id+'\')"><i class="fas fa-trash"></i></button>':"")+"</td></tr>";
   });
-  document.getElementById("usersTableBody").innerHTML=html||"<tr><td colspan='5'>Nessun utente</td></tr>";
+  document.getElementById("usersTableBody").innerHTML=html||"<tr><td colspan='6'>Nessun utente</td></tr>";
+  var sa=document.getElementById("usersSelectAll");if(sa)sa.checked=false;
+}
+function toggleUsersSelectAll(on){
+  document.querySelectorAll("#usersTableBody .user-sel-cb:not(:disabled)").forEach(function(cb){cb.checked=!!on;});
+}
+async function deleteUsersSelected(){
+  if(!canManageUsers()){alert("Permesso negato");return;}
+  var ids=[];
+  document.querySelectorAll("#usersTableBody .user-sel-cb:checked").forEach(function(cb){ids.push(cb.value);});
+  if(!ids.length){alert("Seleziona almeno un utente da eliminare");return;}
+  // filtra secondo permessi
+  var toDel=[];
+  var blocked=[];
+  ids.forEach(function(id){
+    var u=users.find(function(x){return x.id===id;});
+    if(!u){return;}
+    if(currentUser&&currentUser.id===id){blocked.push(u.username+" (te stesso)");return;}
+    if(u.username==="admin"){blocked.push("admin (protetto)");return;}
+    if(isBackOfficer()&&!isSuper()&&normalizeRole(u.role)!=="tecnico"){blocked.push(u.username+" (solo tecnici)");return;}
+    toDel.push(u);
+  });
+  if(!toDel.length){
+    alert("Nessun utente eliminabile."+(blocked.length?"\n\nBloccati:\n- "+blocked.join("\n- "):""));
+    return;
+  }
+  var msg="Eliminare "+toDel.length+" utente/i?\n\n"+toDel.map(function(u){return "• "+u.username+" ("+roleLabel(u.role)+")";}).join("\n");
+  if(blocked.length)msg+="\n\nNon eliminabili:\n- "+blocked.join("\n- ");
+  if(!confirm(msg))return;
+  var ok=0,err=[];
+  for(var i=0;i<toDel.length;i++){
+    var u=toDel[i];
+    try{
+      try{await sb.from("tecnico_clienti").delete().eq("user_id",u.id);}catch(ex){}
+      var res=await sb.from("users").delete().eq("id",u.id);
+      if(res.error)err.push(u.username+": "+res.error.message);
+      else ok++;
+    }catch(ex){err.push(u.username+": "+(ex.message||ex));}
+  }
+  try{await logAudit("USERS",null,"Eliminati "+ok+" utenti");}catch(e){}
+  toast("Eliminati: "+ok+(err.length?" · errori: "+err.length:""));
+  if(err.length)alert("Alcuni errori:\n"+err.slice(0,8).join("\n"));
+  await loadAll();
+  renderUsers();
 }
 function editUser(id){
   var u=users.find(function(x){return x.id===id;});if(!u)return;
