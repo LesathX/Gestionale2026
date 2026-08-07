@@ -4204,24 +4204,406 @@ function fillImportClienteSelect(){var sel=document.getElementById("importClient
 function closeImportClienteModal(){document.getElementById("importClienteModal").classList.remove("show");pendingExcelFile=null;}
 async function importExcel(ev){if(!isSuper()){alert("Solo superadmin");ev.target.value="";return;}var file=ev.target.files[0];if(!file)return;if(typeof XLSX==="undefined"){alert("Libreria Excel non caricata");ev.target.value="";return;}pendingExcelFile=file;fillImportClienteSelect();var radios=document.querySelectorAll('input[name="importClienteMode"]');if(radios[0])radios[0].checked=true;["importNewNome","importNewCodice","importNewCitta","importNewNote"].forEach(function(id){document.getElementById(id).value="";});toggleImportClienteMode();document.getElementById("importClienteModal").classList.add("show");ev.target.value="";}
 async function confirmImportCliente(){if(!pendingExcelFile)return;var mode=document.querySelector('input[name="importClienteMode"]:checked').value,clienteId=null;if(mode==="existing"){clienteId=document.getElementById("importClienteId").value;if(!clienteId){alert("Seleziona un cliente");return;}}else{var nome=reqNA(document.getElementById("importNewNome").value),codice=reqNA(document.getElementById("importNewCodice").value),citta=reqNA(document.getElementById("importNewCitta").value),note=reqNA(document.getElementById("importNewNote").value);if(!nome||!codice||!citta||!note){alert("Tutti obbligatori (o N.A.)");return;}var res=await sb.from("clienti").insert([{nome:nome,codice:codice,citta:citta,note:note}]).select();if(res.error){alert(res.error.message);return;}clienteId=res.data[0].id;toast("Cliente creato");await loadAll();}var file=pendingExcelFile;document.getElementById("importClienteModal").classList.remove("show");pendingExcelFile=null;await runExcelImport(file,clienteId);}
-async function runExcelImport(file,clienteId){var reader=new FileReader();reader.onload=async function(e){try{var wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});var rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:"",raw:false});if(!rows||rows.length<2){alert("File vuoto");return;}var headerIdx=detectHeaderRow(rows,40);if(headerIdx<0){alert("Intestazione non trovata");return;}var h=rows[headerIdx];var cAcr=findCol(h,["acronimo dpc","acronimo"]),cCost=findCol(h,["costruttore"]),cMod=findCol(h,["modello"]),cMat=findCol(h,["matricola"]),cId=findCol(h,["identificativo","id dispositivo"]),cSede=findCol(h,["sede"]),cEd=findCol(h,["edificio"]),cLab=findCol(h,["laboratorio"]),cPiano=findCol(h,["piano"]),cStanza=findCol(h,["stanza"]),cStato=findCol(h,["stato"]),cRef=findCol(h,["referente","responsabile"]),cCad=findCol(h,["cadenza"]),cFiltro=findCol(h,["sistema filtrante","filtrante"]),cAcc=findCol(h,["accessori"]),cAtt=findCol(h,["attivita","attivita"]);
+async function runExcelImport(file,clienteId){
+  var reader=new FileReader();
+  reader.onload=async function(e){
+    try{
+      var wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+      var rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:"",raw:false});
+      if(!rows||rows.length<2){alert("File vuoto");return;}
+
+      function parseExcelDate(v){
+        if(v==null||v==="")return "";
+        if(typeof v==="number"&&!isNaN(v)){
+          // Excel serial date
+          try{
+            var d=XLSX.SSF?null:null;
+            var epoch=new Date(Date.UTC(1899,11,30));
+            var dt=new Date(epoch.getTime()+Math.round(v)*86400000);
+            if(!isNaN(dt.getTime()))return dt.toISOString().slice(0,10);
+          }catch(ex){}
+        }
+        var s=String(v).trim();
+        if(!s||s==="-"||s==="N.D."||s==="N.A.")return "";
+        // already ISO-ish
+        var m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if(m)return m[1]+"-"+m[2]+"-"+m[3];
+        m=s.match(/^(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{2,4})/);
+        if(m){
+          var yy=m[3].length===2?("20"+m[3]):m[3];
+          return yy+"-"+("0"+m[2]).slice(-2)+"-"+("0"+m[1]).slice(-2);
+        }
+        // Date object string
+        var d2=new Date(s);
+        if(!isNaN(d2.getTime())&&d2.getFullYear()>1990)return d2.toISOString().slice(0,10);
+        return s.slice(0,10);
+      }
+      function isEmptyFilterVal(v){
+        var t=String(v||"").trim();
+        return !t||t==="-"||t==="N.D."||t==="N.A."||t.toLowerCase()==="n.d.";
+      }
+
+      // —— Rileva layout CAMI (3 righe intestazione) ——
+      var cami=null;
+      (function detectCami(){
+        var lim=Math.min(rows.length,8);
+        var rowAcro=-1, rowSub=-1;
+        for(var r=0;r<lim;r++){
+          var joined=(rows[r]||[]).map(normalizeHeader).join(" | ");
+          if(joined.indexOf("acronimo")>-1&&joined.indexOf("matricola")>-1)rowAcro=r;
+          if(joined.indexOf("codice")>-1&&(joined.indexOf("filtro")>-1||joined.indexOf("misure")>-1)&&joined.indexOf("prox")>-1)rowSub=r;
+        }
+        if(rowAcro<0||rowSub<0)return;
+        var hA=rows[rowAcro]||[];
+        var hS=rows[rowSub]||[];
+        // trova indici base
+        function colIn(row, names){
+          for(var i=0;i<row.length;i++){
+            var x=normalizeHeader(row[i]);
+            for(var j=0;j<names.length;j++){
+              if(x===names[j]||x.indexOf(names[j])>-1)return i;
+            }
+          }
+          return -1;
+        }
+        var map={
+          acr:colIn(hA,["acronimo dpc","acronimo"]),
+          cost:colIn(hA,["costruttore"]),
+          mod:colIn(hA,["modello"]),
+          mat:colIn(hA,["matricola"]),
+          id:colIn(hA,["identificativo","id dispositivo"]),
+          sede:colIn(hA,["sede"]),
+          dip:colIn(hA,["dipartimento"]),
+          div:colIn(hA,["divisione"]),
+          ed:colIn(hA,["edificio"]),
+          lab:colIn(hA,["laboratorio"]),
+          piano:colIn(hA,["piano"]),
+          stanza:colIn(hA,["stanza"]),
+          stato:colIn(hA,["stato"]),
+          ref:colIn(hA,["referente","responsabile"]),
+          filtro:colIn(hA,["presenza sistema","sistema filtrante","filtrante si"]),
+          // manutenzione
+          cadenza:colIn(hA,["ordinaria","cadenza"]),
+          // sub-row for maintenance details often on rowSub or same
+          ultimaData:colIn(hS,["data"]),
+          ultimaTipo:colIn(hS,["tipologia"]),
+          // accessori: header on rowAcro
+          acc:colIn(hA,["accessori","sezione dati accessori"]),
+          noteFiltro:colIn(hA,["note sul sistema","note sistema"])
+        };
+        // cadenza spesso sulla riga sub col 16 area - cerca su entrambe
+        if(map.cadenza<0)map.cadenza=colIn(hS,["cadenza"]);
+        // ultima attività: preferisci colonna DATA sotto "ULTIMA ATTIVITÀ"
+        // In file: rowAcro col19 area = ULTIMA ATTIVITÀ, rowSub col19 = DATA
+        // Trova blocchi stadio dalla riga acronimo
+        var stageStarts=[];
+        for(var i=0;i<hA.length;i++){
+          var x=normalizeHeader(hA[i]);
+          if(/^1[\s°ºo.\-]*stadio/.test(x)||x==="1 stadio")stageStarts.push({n:1,i:i});
+          else if(/^2[\s°ºo.\-]*stadio/.test(x)||x==="2 stadio")stageStarts.push({n:2,i:i});
+          else if(/^3[\s°ºo.\-]*stadio/.test(x)||x==="3 stadio")stageStarts.push({n:3,i:i});
+          else if(/^4[\s°ºo.\-]*stadio/.test(x)||x==="4 stadio")stageStarts.push({n:4,i:i});
+        }
+        // se non trovati, cerca pattern "codice filtro" ripetuti sulla sub-row
+        if(!stageStarts.length){
+          var codIdxs=[];
+          for(var i=0;i<hS.length;i++){
+            var x=normalizeHeader(hS[i]);
+            if(x.indexOf("codice")>-1&&(x.indexOf("filtro")>-1||x==="codice"))codIdxs.push(i);
+          }
+          codIdxs.forEach(function(ci,idx){if(idx<4)stageStarts.push({n:idx+1,i:ci});});
+        }
+        // per ogni stadio, mappa le 10 sotto-colonne relative a partire da stage start
+        // Ordine atteso: codice, misure, tipo, qty, tipologia P/M, correlazione, data, durata, prox, status
+        var stages={};
+        stageStarts.forEach(function(ss){
+          var base=ss.i;
+          // se sub-row ha "codice filtro" esattamente a base, usa offsets standard
+          var subMap={codice:base,misure:base+1,tipo:base+2,qty:base+3,tipologia:base+4,correlazione:base+5,data:base+6,durata:base+7,prox:base+8,status:base+9};
+          // raffina cercando nella sub-row nell'intervallo [base, base+12)
+          for(var k=base;k<Math.min(base+12,hS.length);k++){
+            var x=normalizeHeader(hS[k]);
+            if(!x)continue;
+            if(x.indexOf("codice")>-1)subMap.codice=k;
+            else if(x.indexOf("misure")>-1)subMap.misure=k;
+            else if(x==="tipo"||x.indexOf("tipo     ")===0)subMap.tipo=k;
+            else if(x.indexOf("q.ta")>-1||x.indexOf("qta")>-1||x.indexOf("quantita")>-1)subMap.qty=k;
+            else if(x.indexOf("tipologia")>-1||x.indexOf("particellare")>-1)subMap.tipologia=k;
+            else if(x.indexOf("correlazione")>-1)subMap.correlazione=k;
+            else if(x.indexOf("data")>-1&&x.indexOf("install")>-1)subMap.data=k;
+            else if(x.indexOf("data")>-1&&subMap.data===base+6)subMap.data=k;
+            else if(x.indexOf("durata")>-1)subMap.durata=k;
+            else if(x.indexOf("prox")>-1||x.indexOf("sostituz")>-1)subMap.prox=k;
+            else if(x.indexOf("status")>-1||x==="stato")subMap.status=k;
+          }
+          stages[ss.n]=subMap;
+        });
+        // accessori: se header "SEZIONE DATI ACCESSORI" o "ACCESSORI"
+        if(map.acc<0){
+          for(var i=0;i<hA.length;i++){
+            var x=normalizeHeader(hA[i]);
+            if(x.indexOf("accessor")>-1){map.acc=i;break;}
+          }
+        }
+        // sotto-colonne accessori
+        var accMap={nome:map.acc,tipo:-1,qty:-1,data:-1,durata:-1,prox:-1,status:-1};
+        if(map.acc>=0){
+          for(var k=map.acc;k<Math.min(map.acc+8,hS.length);k++){
+            var x=normalizeHeader(hS[k]);
+            if(x.indexOf("accessor")>-1||(k===map.acc&&normalizeHeader(hS[k]).indexOf("accessor")>-1))accMap.nome=k;
+            else if(x==="tipo")accMap.tipo=k;
+            else if(x.indexOf("q.ta")>-1||x.indexOf("qta")>-1)accMap.qty=k;
+            else if(x.indexOf("data")>-1)accMap.data=k;
+            else if(x.indexOf("durata")>-1)accMap.durata=k;
+            else if(x.indexOf("prox")>-1)accMap.prox=k;
+            else if(x.indexOf("status")>-1)accMap.status=k;
+          }
+          // se rowSub a map.acc è vuoto ma dice ACCESSORI sulla rowAcro, nome è map.acc
+          if(normalizeHeader(hS[map.acc]||"").indexOf("accessor")>-1)accMap.nome=map.acc;
+          else if(normalizeHeader(hA[map.acc]||"").indexOf("accessor")>-1)accMap.nome=map.acc;
+        }
+        // ultima manutenzione DATA: cerca "data" vicino a "ultima attivita"
+        var ultimaDataCol=-1, ultimaTipoCol=-1, cadenzaValCol=-1, attivitaCol=-1;
+        for(var i=0;i<hA.length;i++){
+          var x=normalizeHeader(hA[i]);
+          if(x.indexOf("ultima attiv")>-1||x.indexOf("ultima attivita")>-1){
+            // sub columns data/tipologia/commessa
+            for(var k=i;k<Math.min(i+5,hS.length);k++){
+              var y=normalizeHeader(hS[k]);
+              if(y==="data"||y.indexOf("data")===0)ultimaDataCol=k;
+              if(y.indexOf("tipologia")>-1)ultimaTipoCol=k;
+            }
+            if(ultimaDataCol<0)ultimaDataCol=i; // fallback
+          }
+          if(x.indexOf("ordinaria")>-1||x.indexOf("cadenza")>-1){
+            cadenzaValCol=i;
+            // a volte cadenza è sulla riga dati nella stessa col, e "MAR-SET" è col+1, attività col+2
+            for(var k=i;k<Math.min(i+4,hS.length);k++){
+              var y=normalizeHeader(hS[k]);
+              if(y.indexOf("cadenza")>-1)cadenzaValCol=k;
+              if(y.indexOf("attivita")>-1)attivitaCol=k;
+            }
+          }
+        }
+        if(attivitaCol<0)attivitaCol=colIn(hS,["attivita"]);
+        if(ultimaDataCol<0){
+          // cerca DATA dopo referente
+          for(var i=0;i<hS.length;i++){
+            if(normalizeHeader(hS[i])==="data"&&i<24){ultimaDataCol=i;break;}
+          }
+        }
+        map.ultimaData=ultimaDataCol;
+        map.ultimaTipo=ultimaTipoCol;
+        map.cadenza=cadenzaValCol>=0?cadenzaValCol:map.cadenza;
+        map.attivita=attivitaCol;
+        map.accMap=accMap;
+        map.stages=stages;
+        map.headerIdx=rowAcro;
+        map.subIdx=rowSub;
+        map.dataStart=Math.max(rowAcro,rowSub)+1;
+        cami=map;
+      })();
+
+      var ok=0,skip=0,errors=[],withFiltro=0,scadutiF=0,okF=0;
+
+      if(cami&&cami.mat>=0||cami&&cami.id>=0){
+        // ===== IMPORT FORMATO CAMI =====
+        if(!confirm("Formato CAMI rilevato (filtri a stadi).\nCliente: "+clienteName(clienteId)+"\nDati da riga "+(cami.dataStart+1)+"\nStadi trovati: "+Object.keys(cami.stages).join(", ")+"\nProcedere?"))return;
+        for(var r=cami.dataStart;r<rows.length;r++){
+          var row=rows[r];
+          if(!row||!row.length){skip++;continue;}
+          var mat=cell(row,cami.mat), idd=cell(row,cami.id);
+          if(!mat&&!idd){skip++;continue;}
+          if(isEmptyFilterVal(mat)&&isEmptyFilterVal(idd)){skip++;continue;}
+          if(!mat||isEmptyFilterVal(mat))mat="MAT-"+(r+1);
+          if(!idd||isEmptyFilterVal(idd))idd="ID-"+(r+1);
+          var sedeImp=(cell(row,cami.sede)||"N.A.").trim();
+          var sedeImpKey=sedeImp.toLowerCase();
+          var already=equipment.find(function(x){
+            return x.clienteId===clienteId&&String(x.sede||"").trim().toLowerCase()===sedeImpKey&&
+              (String(x.matricola||"").toLowerCase()===mat.toLowerCase()||String(x.idDispositivo||"").toLowerCase()===idd.toLowerCase());
+          });
+          if(already){skip++;errors.push("Riga "+(r+1)+": duplicato "+mat+" / "+idd);continue;}
+
+          // tipi attività
+          var attRaw=cell(row,cami.attivita);
+          if(!attRaw&&cami.ultimaTipo>=0)attRaw=cell(row,cami.ultimaTipo);
+          var tipoAtt=[];
+          if(attRaw){
+            ["Manutenzione ordinaria","Manutenzione straordinaria","Controlli strumentali","Cambio filtri","Verifica periodica"].forEach(function(t){});
+            // codici brevi
+            var up=attRaw.toUpperCase();
+            if(up.indexOf("MA")>-1)tipoAtt.push("Manutenzione ordinaria");
+            if(up.indexOf("CS")>-1)tipoAtt.push("Controlli strumentali");
+            if(up.indexOf("CF")>-1)tipoAtt.push("Cambio filtri");
+            if(up.indexOf("FF")>-1)tipoAtt.push("Cambio filtri");
+            if(!tipoAtt.length&&attRaw)tipoAtt.push(attRaw);
+          }
+
+          // filtri stadi
+          var fs={}, maxS=0;
+          Object.keys(cami.stages).forEach(function(sn){
+            var sc=cami.stages[sn];
+            var codice=cell(row,sc.codice);
+            var misure=cell(row,sc.misure);
+            var tipo=cell(row,sc.tipo);
+            var qty=cell(row,sc.qty);
+            var tipol=cell(row,sc.tipologia);
+            var corr=cell(row,sc.correlazione);
+            var dataInst=parseExcelDate(cell(row,sc.data));
+            var durata=cell(row,sc.durata);
+            var prox=parseExcelDate(cell(row,sc.prox));
+            var statusRaw=cell(row,sc.status);
+            if(isEmptyFilterVal(codice)&&isEmptyFilterVal(misure)&&isEmptyFilterVal(tipol)&&isEmptyFilterVal(dataInst)&&isEmptyFilterVal(prox))return;
+            if(isEmptyFilterVal(codice)&&isEmptyFilterVal(misure))return;
+            if(!prox&&dataInst&&durata)prox=calcProx(dataInst,durata)||"";
+            var st={
+              codice:isEmptyFilterVal(codice)?"":codice,
+              misure:isEmptyFilterVal(misure)?"":misure,
+              tipologia:isEmptyFilterVal(tipol)?(isEmptyFilterVal(tipo)?"":tipo):tipol,
+              qty:isEmptyFilterVal(qty)?"":qty,
+              correlazione:isEmptyFilterVal(corr)?"":corr,
+              data_install:dataInst||"",
+              durata_mesi:isEmptyFilterVal(durata)?"":String(durata).replace(/[^\d.]/g,""),
+              prox:prox||"",
+              status:""
+            };
+            st.status=statusRaw&&!isEmptyFilterVal(statusRaw)?String(statusRaw).toUpperCase():autoFilterStatus(st.prox);
+            fs[String(sn)]=st;
+            if(parseInt(sn,10)>maxS)maxS=parseInt(sn,10);
+            if(st.status==="OVERDUE"||st.status==="SCADUTO"||(st.prox&&autoFilterStatus(st.prox)==="overdue"))scadutiF++;
+            else if(st.prox)okF++;
+          });
+
+          var haFiltro=mapFiltro(cell(row,cami.filtro));
+          if(haFiltro==="no"&&Object.keys(fs).length)haFiltro="si";
+          if(haFiltro==="si")withFiltro++;
+
+          // accessori
+          var accParts=[];
+          if(cami.accMap){
+            var an=cell(row,cami.accMap.nome);
+            var at=cami.accMap.tipo>=0?cell(row,cami.accMap.tipo):"";
+            var aq=cami.accMap.qty>=0?cell(row,cami.accMap.qty):"";
+            if(!isEmptyFilterVal(an))accParts.push(an);
+            if(!isEmptyFilterVal(at))accParts.push(at);
+            if(!isEmptyFilterVal(aq))accParts.push("q.tà "+aq);
+          }
+          var accessori=accParts.join(" · ");
+
+          var cadenza=cell(row,cami.cadenza);
+          // a volte cadenza è "S" e periodo in colonna successiva
+          if(cadenza&&String(cadenza).length<=2&&cami.cadenza>=0){
+            var extra=cell(row,cami.cadenza+1);
+            if(extra&&extra.length>1)cadenza=(cadenza+" "+extra).trim();
+          }
+
+          var ultimaMan=cami.ultimaData>=0?parseExcelDate(cell(row,cami.ultimaData)):"";
+          var noteExtra=[];
+          if(cami.noteFiltro>=0&&cell(row,cami.noteFiltro))noteExtra.push(cell(row,cami.noteFiltro));
+          if(cami.div>=0&&cell(row,cami.div))noteExtra.push("Divisione: "+cell(row,cami.div));
+
+          var insertRow={
+            cliente_id:clienteId,
+            acronimo:(cell(row,cami.acr)||"").toUpperCase().trim(),
+            costruttore:cell(row,cami.cost),
+            modello:cell(row,cami.mod),
+            matricola:mat,
+            id_dispositivo:idd,
+            sede:sedeImp||"N.A.",
+            dipartimento:cami.dip>=0?cell(row,cami.dip):"",
+            edificio:cell(row,cami.ed),
+            laboratorio:cell(row,cami.lab),
+            piano:cell(row,cami.piano),
+            stanza:cell(row,cami.stanza),
+            stato:mapStato(cell(row,cami.stato)),
+            responsabile:cell(row,cami.ref),
+            cadenza_man:cadenza||"",
+            tipo_attivita:tipoAtt,
+            ha_sistema_filtrante:haFiltro,
+            stadi_filtranti:maxS?(maxS+" Stadio"):"",
+            accessori:accessori,
+            note:("Import Excel riga "+(r+1)+(noteExtra.length?(" · "+noteExtra.join(" · ")):"" )),
+            filtri_stadi:fs,
+            ultima_man:ultimaMan||null,
+            prossima_man:null
+          };
+
+          var res=await sb.from("equipment").insert([insertRow]);
+          if(res.error){
+            // retry without dipartimento if column missing
+            if((res.error.message||"").indexOf("dipartimento")>-1){
+              delete insertRow.dipartimento;
+              res=await sb.from("equipment").insert([insertRow]);
+            }
+            if(res.error)errors.push("Riga "+(r+1)+": "+res.error.message);
+            else ok++;
+          }else ok++;
+        }
+        await logAudit("IMPORT",null,"Import CAMI Excel -> "+clienteName(clienteId)+" - "+ok+" DPC");
+        alert("Import CAMI completato\n\nInseriti: "+ok+"\nSaltati: "+skip+"\nCon sistema filtrante: "+withFiltro+"\nStadi filtro OK/in regola: "+okF+"\nStadi filtro scaduti: "+scadutiF+(errors.length?"\n\nErrori:\n"+errors.slice(0,10).join("\n"):""));
+        toast("Import: "+ok+" DPC");
+        await loadAll();
+        return;
+      }
+
+      // ===== FALLBACK: formato semplice (1 riga header) =====
+      var headerIdx=detectHeaderRow(rows,40);
+      if(headerIdx<0){alert("Intestazione non trovata.\nUsa il modello CAMI oppure un Excel con colonne Matricola/Identificativo.");return;}
+      var h=rows[headerIdx];
+      var cAcr=findCol(h,["acronimo dpc","acronimo"]),cCost=findCol(h,["costruttore"]),cMod=findCol(h,["modello"]),cMat=findCol(h,["matricola"]),cId=findCol(h,["identificativo","id dispositivo"]),cSede=findCol(h,["sede"]),cEd=findCol(h,["edificio"]),cLab=findCol(h,["laboratorio"]),cPiano=findCol(h,["piano"]),cStanza=findCol(h,["stanza"]),cStato=findCol(h,["stato"]),cRef=findCol(h,["referente","responsabile"]),cCad=findCol(h,["cadenza"]),cFiltro=findCol(h,["sistema filtrante","filtrante","presenza sistema"]),cAcc=findCol(h,["accessori","molecode"]),cAtt=findCol(h,["attivita"]),cDip=findCol(h,["dipartimento"]),cUlt=findCol(h,["ultima man","ultima manutenzione","data ultima"]),cProx=findCol(h,["prossima man","prossima manutenzione"]);
       var stageCols={};
       for(var si=1;si<=4;si++){
         stageCols[si]={
-          codice:findCol(h,[si+" stadio codice","stadio "+si+" codice",si+"o stadio codice",si+"° stadio codice","s"+si+" codice","codice filtro "+si,"codice "+si+" stadio",si+" stadio"]),
-          misure:findCol(h,[si+" stadio misure","s"+si+" misure","misure "+si,"misure filtro "+si,si+"o stadio misure",si+"° stadio misure"]),
-          tipologia:findCol(h,[si+" stadio tipologia","s"+si+" tipologia","tipologia "+si,"tipo filtro "+si,si+"o stadio tipologia",si+"° stadio tipologia","tipologia p/m "+si]),
-          qty:findCol(h,[si+" stadio q","s"+si+" qty","quantita "+si,"q.ta "+si,"qta "+si,si+"o stadio quantita"]),
-          correlazione:findCol(h,[si+" stadio correlazione","s"+si+" correlazione","correlazione "+si]),
-          data:findCol(h,[si+" stadio data","s"+si+" data","data install "+si,"data installazione "+si,"data install. "+si,si+"o stadio data",si+"° stadio data install"]),
-          durata:findCol(h,[si+" stadio durata","s"+si+" durata","durata "+si,"durata mesi "+si,si+"o stadio durata"]),
-          prox:findCol(h,[si+" stadio prox","s"+si+" prox","prox "+si,"prossima sostituzione "+si,"prox. sostituz "+si,si+"o stadio prox",si+"° stadio prox"])
+          codice:findCol(h,[si+" stadio codice","stadio "+si+" codice",si+"o stadio codice","s"+si+" codice","codice filtro "+si,"s"+si+" codice"]),
+          misure:findCol(h,[si+" stadio misure","s"+si+" misure","misure "+si,"misure filtro "+si]),
+          tipologia:findCol(h,[si+" stadio tipologia","s"+si+" tipologia","tipologia "+si,"tipo filtro "+si]),
+          qty:findCol(h,[si+" stadio q","s"+si+" qty","quantita "+si,"q.ta "+si]),
+          correlazione:findCol(h,[si+" stadio correlazione","s"+si+" correlazione"]),
+          data:findCol(h,[si+" stadio data","s"+si+" data","data install "+si,"data installazione "+si]),
+          durata:findCol(h,[si+" stadio durata","s"+si+" durata","durata "+si]),
+          prox:findCol(h,[si+" stadio prox","s"+si+" prox","prox "+si,"prossima sostituzione "+si])
         };
-      }if(cMat<0&&cId<0){alert("Serve MATRICOLA o IDENTIFICATIVO");return;}var ok=0,skip=0,errors=[];if(!confirm("Cliente: "+clienteName(clienteId)+"\nRiga: "+(headerIdx+1)+"\nProcedere?"))return;for(var r=headerIdx+1;r<rows.length;r++){var row=rows[r];if(!row||!row.length){skip++;continue;}var mat=cell(row,cMat),idd=cell(row,cId);if(!mat&&!idd){skip++;continue;}if(!mat)mat="MAT-"+(r+1);if(!idd)idd="ID-"+(r+1);
-      var sedeImp=(cell(row,cSede)||"N.A.").trim();
-      var sedeImpKey=sedeImp.toLowerCase();
-      var already=equipment.find(function(x){return x.clienteId===clienteId&&String(x.sede||"").trim().toLowerCase()===sedeImpKey&&(String(x.matricola||"").toLowerCase()===mat.toLowerCase()||String(x.idDispositivo||"").toLowerCase()===idd.toLowerCase());});
-      if(already){skip++;errors.push("Riga "+(r+1)+": duplicato "+mat+" / "+idd+" (stessa sede "+sedeImp+")");continue;}var attRaw=cell(row,cAtt),tipoAtt=[];if(attRaw){["MA","CS","CF","FF"].forEach(function(t){if(attRaw.toUpperCase().indexOf(t)>-1)tipoAtt.push(t);});}var insertRow={cliente_id:clienteId,acronimo:(cell(row,cAcr)||"").toUpperCase(),costruttore:cell(row,cCost),modello:cell(row,cMod),matricola:mat,id_dispositivo:idd,sede:cell(row,cSede)||"N.A.",edificio:cell(row,cEd),laboratorio:cell(row,cLab),piano:cell(row,cPiano),stanza:cell(row,cStanza),stato:mapStato(cell(row,cStato)),responsabile:cell(row,cRef),cadenza_man:cell(row,cCad),tipo_attivita:tipoAtt,ha_sistema_filtrante:mapFiltro(cell(row,cFiltro)),accessori:cell(row,cAcc),note:"Import Excel riga "+(r+1),filtri_stadi:(function(){var fs={};var maxS=0;for(var si=1;si<=4;si++){var sc=stageCols[si];var st={codice:cell(row,sc.codice),misure:cell(row,sc.misure),tipologia:cell(row,sc.tipologia),qty:cell(row,sc.qty),correlazione:cell(row,sc.correlazione),data_install:cell(row,sc.data),durata_mesi:cell(row,sc.durata),prox:cell(row,sc.prox),status:""};if(!st.prox)st.prox=calcProx(st.data_install,st.durata_mesi);st.status=autoFilterStatus(st.prox);if(st.codice||st.misure||st.tipologia||st.data_install||st.prox){fs[String(si)]=st;maxS=si;}}return fs;})(),stadi_filtranti:(function(){var maxS=0;for(var si=1;si<=4;si++){var sc=stageCols[si];if(cell(row,sc.codice)||cell(row,sc.data)||cell(row,sc.prox))maxS=si;}return maxS?maxS+" Stadio":"";})(),ultima_man:null,prossima_man:null};var res=await sb.from("equipment").insert([insertRow]);if(res.error)errors.push("Riga "+(r+1)+": "+res.error.message);else ok++;}await logAudit("IMPORT",null,"Import Excel -> "+clienteName(clienteId)+" - "+ok+" DPC");alert("Import: "+ok+" inseriti, "+skip+" saltati"+(errors.length?"\n"+errors.slice(0,8).join("\n"):""));toast("Import: "+ok);await loadAll();}catch(err){alert(err.message||err);}};reader.readAsArrayBuffer(file);}
+      }
+      if(cMat<0&&cId<0){alert("Serve MATRICOLA o IDENTIFICATIVO");return;}
+      if(!confirm("Cliente: "+clienteName(clienteId)+"\nRiga header: "+(headerIdx+1)+"\nProcedere?"))return;
+      for(var r=headerIdx+1;r<rows.length;r++){
+        var row=rows[r];
+        if(!row||!row.length){skip++;continue;}
+        var mat=cell(row,cMat),idd=cell(row,cId);
+        if(!mat&&!idd){skip++;continue;}
+        if(!mat)mat="MAT-"+(r+1);if(!idd)idd="ID-"+(r+1);
+        var sedeImp=(cell(row,cSede)||"N.A.").trim();
+        var already=equipment.find(function(x){return x.clienteId===clienteId&&String(x.sede||"").trim().toLowerCase()===sedeImp.toLowerCase()&&(String(x.matricola||"").toLowerCase()===mat.toLowerCase()||String(x.idDispositivo||"").toLowerCase()===idd.toLowerCase());});
+        if(already){skip++;errors.push("Riga "+(r+1)+": duplicato "+mat);continue;}
+        var attRaw=cell(row,cAtt),tipoAtt=[];
+        if(attRaw){["MA","CS","CF","FF"].forEach(function(t){if(attRaw.toUpperCase().indexOf(t)>-1)tipoAtt.push(t);});}
+        var fs={},maxS=0;
+        for(var si=1;si<=4;si++){
+          var sc=stageCols[si];
+          var st={codice:cell(row,sc.codice),misure:cell(row,sc.misure),tipologia:cell(row,sc.tipologia),qty:cell(row,sc.qty),correlazione:cell(row,sc.correlazione),data_install:parseExcelDate(cell(row,sc.data)),durata_mesi:cell(row,sc.durata),prox:parseExcelDate(cell(row,sc.prox)),status:""};
+          if(!st.prox)st.prox=calcProx(st.data_install,st.durata_mesi)||"";
+          st.status=autoFilterStatus(st.prox);
+          if(st.codice||st.misure||st.tipologia||st.data_install||st.prox){fs[String(si)]=st;maxS=si;}
+        }
+        var haFiltro=mapFiltro(cell(row,cFiltro));
+        if(haFiltro==="no"&&Object.keys(fs).length)haFiltro="si";
+        var insertRow={cliente_id:clienteId,acronimo:(cell(row,cAcr)||"").toUpperCase(),costruttore:cell(row,cCost),modello:cell(row,cMod),matricola:mat,id_dispositivo:idd,sede:sedeImp,edificio:cell(row,cEd),laboratorio:cell(row,cLab),piano:cell(row,cPiano),stanza:cell(row,cStanza),stato:mapStato(cell(row,cStato)),responsabile:cell(row,cRef),cadenza_man:cell(row,cCad),tipo_attivita:tipoAtt,ha_sistema_filtrante:haFiltro,stadi_filtranti:maxS?maxS+" Stadio":"",accessori:cell(row,cAcc),note:"Import Excel riga "+(r+1),filtri_stadi:fs,dipartimento:cDip>=0?cell(row,cDip):"",ultima_man:cUlt>=0?(parseExcelDate(cell(row,cUlt))||null):null,prossima_man:cProx>=0?(parseExcelDate(cell(row,cProx))||null):null};
+        var res=await sb.from("equipment").insert([insertRow]);
+        if(res.error){
+          delete insertRow.dipartimento;
+          res=await sb.from("equipment").insert([insertRow]);
+          if(res.error)errors.push("Riga "+(r+1)+": "+res.error.message);else ok++;
+        }else ok++;
+      }
+      await logAudit("IMPORT",null,"Import Excel -> "+clienteName(clienteId)+" - "+ok+" DPC");
+      alert("Import: "+ok+" inseriti, "+skip+" saltati"+(errors.length?"\n"+errors.slice(0,8).join("\n"):""));
+      toast("Import: "+ok);
+      await loadAll();
+    }catch(err){alert(err.message||err);}
+  };
+  reader.readAsArrayBuffer(file);
+}
 
 
 var OBB_KEY="cami_allegati_obbligatori_v2";
