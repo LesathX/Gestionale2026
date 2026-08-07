@@ -427,7 +427,7 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
       <select id="filterSede" onchange="renderTable()"><option value="">Sedi</option></select>
       <select id="filterStato" onchange="renderTable()"><option value="">Stati</option><option>OPERATIVA</option><option>IN PRODUZIONE</option><option>MANUTENZIONE</option><option>DA INSTALLARE</option><option>IN DISUSO</option><option>DISMESSA</option><option>NON DI COMPETENZA CAMI</option></select>
       <select id="filterFiltro" onchange="renderTable()"><option value="">Filtro</option><option value="si">Si</option><option value="no">No</option></select>
-      <select id="filterScadenza" onchange="renderTable()"><option value="">Scadenze</option><option value="scaduti">Scaduti</option><option value="d7">Scaduti + entro 7 gg</option><option value="d15">Scaduti + entro 15 gg</option><option value="d30">Scaduti + entro 30 gg</option><option value="in_scadenza">Solo in scadenza (1-30)</option><option value="ok">In regola</option></select>
+      <select id="filterScadenza" onchange="renderTable()"><option value="">Scadenze DPC</option><option value="scaduti">DPC scaduti</option><option value="d7">DPC scaduti + entro 7 gg</option><option value="d15">DPC scaduti + entro 15 gg</option><option value="d30">DPC scaduti + entro 30 gg</option><option value="in_scadenza">DPC in scadenza (1-30)</option><option value="ok">DPC in regola</option></select>
     </div></div>
     <div class="table-wrap">
       <div class="table-scroll-top" id="tableScrollTop" title="Scorri orizzontalmente"><div class="table-scroll-top-inner" id="tableScrollTopInner"></div></div>
@@ -2724,8 +2724,8 @@ function renderStats(){
   document.getElementById("statsContainer").innerHTML=
     '<div class="stat-card stat-dpc"><div class="stat-icon"><i class="fas fa-flask"></i></div><div class="stat-body"><div class="stat-value">'+eqList.length+'</div><div class="stat-label">DPC</div></div></div>'+
     '<div class="stat-card stat-cli"><div class="stat-icon"><i class="fas fa-building"></i></div><div class="stat-body"><div class="stat-value">'+clienti.length+'</div><div class="stat-label">Clienti</div></div></div>'+
-    '<div class="stat-card stat-scaduti"><div class="stat-icon"><i class="fas fa-exclamation-circle"></i></div><div class="stat-body"><div class="stat-value '+(sc?"stat-red":"")+'">'+sc+'</div><div class="stat-label">Scaduti</div></div></div>'+
-    '<div class="stat-card stat-scadenza"><div class="stat-icon"><i class="fas fa-clock"></i></div><div class="stat-body"><div class="stat-value '+(so?"stat-orange":"")+'">'+so+'</div><div class="stat-label">In scadenza</div></div></div>'+
+    '<div class="stat-card stat-scaduti" title="DPC con almeno una scadenza superata (manutenzione o filtri)"><div class="stat-icon"><i class="fas fa-exclamation-circle"></i></div><div class="stat-body"><div class="stat-value '+(sc?"stat-red":"")+'">'+sc+'</div><div class="stat-label">DPC scaduti</div></div></div>'+
+    '<div class="stat-card stat-scadenza" title="DPC con prossima scadenza entro 30 giorni"><div class="stat-icon"><i class="fas fa-clock"></i></div><div class="stat-body"><div class="stat-value '+(so?"stat-orange":"")+'">'+so+'</div><div class="stat-label">DPC in scadenza</div></div></div>'+
     '<div class="stat-card stat-op"><div class="stat-icon"><i class="fas fa-check-circle"></i></div><div class="stat-body"><div class="stat-value">'+op+'</div><div class="stat-label">Operative</div></div></div>';
 }
 function renderClientStats(){
@@ -2755,7 +2755,32 @@ function filterByClienteChip(clienteId){
   try{renderClientStats();}catch(e){}
   try{window.scrollTo({top:0,behavior:"smooth"});}catch(e){try{window.scrollTo(0,0);}catch(ex){}}
 }
-function updateExpiry(){var scMan=0,soMan=0,scFil=0,soFil=0;visibleEquipment().forEach(function(e){if(isOverdue(e.prossimaMan))scMan++;else if(isSoon(e.prossimaMan))soMan++;stageProxList(e).forEach(function(x){if(x.status==="overdue")scFil++;else if(x.status==="soon")soFil++;});});var sc=scMan+scFil,so=soMan+soFil;var box=document.getElementById("expiryAlert"),tx=document.getElementById("expiryAlertText");if(!sc&&!so){box.classList.remove("show","danger");return;}var p=[];if(scMan)p.push("<strong>"+scMan+" man. scadute</strong>");if(soMan)p.push("<strong>"+soMan+" man. in scadenza</strong>");if(scFil)p.push("<strong>"+scFil+" filtri scaduti</strong>");if(soFil)p.push("<strong>"+soFil+" filtri in scadenza</strong>");tx.innerHTML=p.join(" - ");box.classList.add("show");if(sc)box.classList.add("danger");else box.classList.remove("danger");}
+function updateExpiry(){
+  var scMan=0,soMan=0,scFil=0,soFil=0,dpcSc=0,dpcSo=0;
+  visibleEquipment().forEach(function(e){
+    if(isOverdue(e.prossimaMan))scMan++;
+    else if(isSoon(e.prossimaMan))soMan++;
+    stageProxList(e).forEach(function(x){
+      if(x.status==="overdue")scFil++;
+      else if(x.status==="soon")soFil++;
+    });
+    var d=deviceExpiryStatus(e);
+    if(d==="overdue")dpcSc++;
+    else if(d==="soon")dpcSo++;
+  });
+  var box=document.getElementById("expiryAlert"),tx=document.getElementById("expiryAlertText");
+  if(!scMan&&!soMan&&!scFil&&!soFil&&!dpcSc&&!dpcSo){box.classList.remove("show","danger");return;}
+  var p=[];
+  if(dpcSc)p.push("<strong>"+dpcSc+" DPC scaduti</strong>");
+  if(dpcSo)p.push("<strong>"+dpcSo+" DPC in scadenza</strong>");
+  if(scMan)p.push("<strong>"+scMan+" man. scadute</strong>");
+  if(soMan)p.push("<strong>"+soMan+" man. in scadenza</strong>");
+  if(scFil)p.push("<strong>"+scFil+" stadi filtro scaduti</strong>");
+  if(soFil)p.push("<strong>"+soFil+" stadi filtro in scadenza</strong>");
+  tx.innerHTML=p.join(" · ");
+  box.classList.add("show");
+  if(scMan||scFil||dpcSc)box.classList.add("danger");else box.classList.remove("danger");
+}
 function filterExpiring(){var hasOver=equipment.some(function(e){return deviceExpiryStatus(e)==="overdue";});document.getElementById("filterScadenza").value=hasOver?"scaduti":"in_scadenza";renderTable();}
 
 function syncTableScrollbars(){
