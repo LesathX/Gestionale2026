@@ -781,19 +781,49 @@ tbody tr.row-overdue{background:#fef2f2}tbody tr.row-soon{background:#fff7ed}
   </div>
 </div></div>
 
-<div id="importClienteModal" class="modal-overlay"><div class="modal" style="max-width:500px">
+<div id="importClienteModal" class="modal-overlay"><div class="modal" style="max-width:540px">
   <div class="modal-header"><h2>Associa file a un cliente</h2><button class="modal-close" onclick="closeImportClienteModal()">&times;</button></div>
   <div class="modal-body">
+    <p id="importFileHint" class="device-info" style="margin-bottom:.65rem;font-size:.82rem">File: —</p>
+
     <label class="radio-block"><input type="radio" name="importClienteMode" value="existing" checked onchange="toggleImportClienteMode()"> Cliente esistente</label>
-    <div class="form-group" id="importExistingWrap"><label>Cliente</label><select id="importClienteId"></select></div>
+    <div id="importExistingWrap" style="margin:.4rem 0 .85rem .25rem;padding:.65rem .75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:.5rem">
+      <div class="form-group"><label>Cliente *</label><select id="importClienteId"></select></div>
+      <div class="form-group" style="margin-top:.55rem">
+        <label style="font-weight:700;margin-bottom:.4rem;display:block;color:#1e3a5f">I DPC del file devono:</label>
+        <label class="radio-block" style="margin:.25rem 0;padding:.35rem .45rem;border:1px solid #cbd5e1;border-radius:.4rem;background:#fff">
+          <input type="radio" name="importDpcMode" value="append" checked>
+          <strong>Aggiungere</strong> alla lista già esistente <span style="color:#64748b;font-size:.78rem">(i duplicati vengono saltati)</span>
+        </label>
+        <label class="radio-block" style="margin:.25rem 0;padding:.35rem .45rem;border:1px solid #fecaca;border-radius:.4rem;background:#fff5f5">
+          <input type="radio" name="importDpcMode" value="overwrite">
+          <strong>Sovrascrivere</strong> i DPC già presenti <span style="color:#b91c1c;font-size:.78rem">(elimina i DPC attuali + storico, poi importa il file)</span>
+        </label>
+      </div>
+    </div>
+
     <label class="radio-block"><input type="radio" name="importClienteMode" value="new" onchange="toggleImportClienteMode()"> Nuovo cliente</label>
-    <div id="importNewWrap" style="display:none">
+    <div id="importNewWrap" style="display:none;margin:.4rem 0 .5rem .25rem;padding:.65rem .75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:.5rem">
       <div class="reminder-box">Tutti obbligatori. Usa N.A. se manca un dato.</div>
+      <div class="form-group" style="margin:.5rem 0">
+        <label style="font-weight:700;margin-bottom:.4rem;display:block;color:#1e3a5f">Nome del nuovo cliente</label>
+        <label class="radio-block" style="margin:.25rem 0;padding:.35rem .45rem;border:1px solid #bfdbfe;border-radius:.4rem;background:#eff6ff">
+          <input type="radio" name="importNomeMode" value="file" checked onchange="onImportNomeModeChange()">
+          <strong>Dal titolo del file Excel</strong>
+          <span id="importNomeFromFileLabel" style="display:block;color:#1e40af;font-size:.82rem;margin-top:.15rem">—</span>
+        </label>
+        <label class="radio-block" style="margin:.25rem 0;padding:.35rem .45rem;border:1px solid #cbd5e1;border-radius:.4rem;background:#fff">
+          <input type="radio" name="importNomeMode" value="manual" onchange="onImportNomeModeChange()">
+          <strong>Inserisci manualmente</strong>
+        </label>
+      </div>
       <div class="form-grid" style="grid-template-columns:1fr 1fr">
-        <div class="form-group"><label>Nome *</label><input id="importNewNome"></div>
-        <div class="form-group"><label>Codice *</label><input id="importNewCodice"></div>
-        <div class="form-group"><label>Citta *</label><input id="importNewCitta"></div>
-        <div class="form-group"><label>Note *</label><input id="importNewNote"></div>
+        <div class="form-group"><label>Nome *</label><input id="importNewNome" placeholder="nome cliente"></div>
+        <div class="form-group"><label>Codice *</label><input id="importNewCodice" placeholder="progressivo"></div>
+        <div class="form-group"><label>Sede legale *</label><input id="importNewCitta" placeholder="città / sede legale"></div>
+        <div class="form-group"><label>Note *</label><input id="importNewNote" placeholder="N.A. o note"></div>
+        <div class="form-group"><label>Sede</label><input id="importNewSede" placeholder="es. Casaccia (RM)"></div>
+        <div class="form-group"><label>Dipartimento</label><input id="importNewDipartimento" placeholder="opzionale"></div>
       </div>
     </div>
     <div class="form-actions"><button class="btn-cancel" onclick="closeImportClienteModal()">Annulla</button><button class="btn-save" onclick="confirmImportCliente()">Continua</button></div>
@@ -4315,12 +4345,222 @@ function cell(row,idx){if(idx<0||!row||idx>=row.length)return"";var v=row[idx];i
 function detectHeaderRow(rows,maxScan){var bestIdx=-1,bestScore=0,limit=Math.min(rows.length,maxScan||40);for(var r=0;r<limit;r++){var row=rows[r];if(!row||!row.length)continue;var joined=row.map(normalizeHeader).join(" | "),score=0;if(joined.indexOf("matricola")>-1)score+=5;if(joined.indexOf("identificativo")>-1)score+=5;if(joined.indexOf("acronimo")>-1)score+=3;if(joined.indexOf("costruttore")>-1)score+=2;if(joined.indexOf("elenco apparecchiature")>-1)score=0;if(joined.indexOf("campo ad uso esclusivo")>-1)score=0;if(score>bestScore){bestScore=score;bestIdx=r;}}return bestScore>=5?bestIdx:-1;}
 function mapStato(raw){var s=normalizeHeader(raw);if(!s)return"OPERATIVA";if(s.indexOf("operativ")>-1)return"OPERATIVA";if(s.indexOf("produzione")>-1)return"IN PRODUZIONE";if(s.indexOf("manutenzione")>-1)return"MANUTENZIONE";if(s.indexOf("installare")>-1)return"DA INSTALLARE";if(s.indexOf("disuso")>-1)return"IN DISUSO";if(s.indexOf("dismess")>-1)return"DISMESSA";if(s.indexOf("competenza")>-1)return"NON DI COMPETENZA CAMI";var up=String(raw||"").trim().toUpperCase();return STATI_DPC.indexOf(up)>-1?up:(up||"OPERATIVA");}
 function mapFiltro(raw){var s=normalizeHeader(raw);if(!s)return"no";if(s==="si"||s==="s?"||s==="yes"||s==="1"||s.indexOf("si")===0)return"si";return"no";}
-function toggleImportClienteMode(){var mode=document.querySelector('input[name="importClienteMode"]:checked').value;document.getElementById("importExistingWrap").style.display=mode==="existing"?"block":"none";document.getElementById("importNewWrap").style.display=mode==="new"?"block":"none";}
-function fillImportClienteSelect(){var sel=document.getElementById("importClienteId");sel.innerHTML='<option value="">- Seleziona -</option>';clienti.forEach(function(c){sel.innerHTML+='<option value="'+c.id+'">'+c.nome+'</option>';});}
-function closeImportClienteModal(){document.getElementById("importClienteModal").classList.remove("show");pendingExcelFile=null;}
-async function importExcel(ev){if(!isSuper()){alert("Solo superadmin");ev.target.value="";return;}var file=ev.target.files[0];if(!file)return;if(typeof XLSX==="undefined"){alert("Libreria Excel non caricata");ev.target.value="";return;}pendingExcelFile=file;fillImportClienteSelect();var radios=document.querySelectorAll('input[name="importClienteMode"]');if(radios[0])radios[0].checked=true;["importNewNome","importNewCodice","importNewCitta","importNewNote"].forEach(function(id){document.getElementById(id).value="";});toggleImportClienteMode();document.getElementById("importClienteModal").classList.add("show");ev.target.value="";}
-async function confirmImportCliente(){if(!pendingExcelFile)return;var mode=document.querySelector('input[name="importClienteMode"]:checked').value,clienteId=null;if(mode==="existing"){clienteId=document.getElementById("importClienteId").value;if(!clienteId){alert("Seleziona un cliente");return;}}else{var nome=reqNA(document.getElementById("importNewNome").value),codice=reqNA(document.getElementById("importNewCodice").value),citta=reqNA(document.getElementById("importNewCitta").value),note=reqNA(document.getElementById("importNewNote").value);if(!nome||!codice||!citta||!note){alert("Tutti obbligatori (o N.A.)");return;}var res=await sb.from("clienti").insert([{nome:nome,codice:codice,citta:citta,note:note}]).select();if(res.error){alert(res.error.message);return;}clienteId=res.data[0].id;toast("Cliente creato");await loadAll();}var file=pendingExcelFile;document.getElementById("importClienteModal").classList.remove("show");pendingExcelFile=null;await runExcelImport(file,clienteId);}
-async function runExcelImport(file,clienteId){
+
+function nomeFromExcelFileName(fileName){
+  if(!fileName)return "";
+  return String(fileName)
+    .replace(/\.(xlsx|xls|csv)$/i,"")
+    .replace(/[_]+/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+}
+function onImportNomeModeChange(){
+  var modeEl=document.querySelector('input[name="importNomeMode"]:checked');
+  var mode=modeEl?modeEl.value:"file";
+  var nomeEl=document.getElementById("importNewNome");
+  if(!nomeEl)return;
+  var fromFile=(window._importFileBaseName)||"";
+  var fromPreview=(window._importPreview&&window._importPreview.nome)||"";
+  var suggested=fromFile||fromPreview||"";
+  if(mode==="file"){
+    if(suggested)nomeEl.value=suggested;
+    nomeEl.readOnly=true;
+    nomeEl.style.background="#eff6ff";
+  }else{
+    nomeEl.readOnly=false;
+    nomeEl.style.background="#fff";
+    if(nomeEl.value===fromFile||nomeEl.value===fromPreview){
+      // lascia il valore, utente può modificare
+    }
+  }
+  var lab=document.getElementById("importNomeFromFileLabel");
+  if(lab)lab.textContent=suggested?('« '+suggested+' »'):"(titolo file non disponibile)";
+}
+
+function toggleImportClienteMode(){
+  var mode=document.querySelector('input[name="importClienteMode"]:checked').value;
+  document.getElementById("importExistingWrap").style.display=mode==="existing"?"block":"none";
+  document.getElementById("importNewWrap").style.display=mode==="new"?"block":"none";
+}
+function fillImportClienteSelect(){
+  var sel=document.getElementById("importClienteId");
+  sel.innerHTML='<option value="">- Seleziona -</option>';
+  clienti.forEach(function(c){sel.innerHTML+='<option value="'+c.id+'">'+c.nome+(c.codice?(" · "+c.codice):"")+'</option>';});
+}
+function closeImportClienteModal(){
+  document.getElementById("importClienteModal").classList.remove("show");
+  pendingExcelFile=null;
+  window._importPreview=null;
+}
+function nextClienteCodiceProgressivo(){
+  var max=0;
+  (clientiAll||clienti||[]).forEach(function(c){
+    var n=parseInt(String(c.codice||"").replace(/\D/g,""),10);
+    if(!isNaN(n)&&n>max)max=n;
+  });
+  return String(max+1).padStart(4,"0");
+}
+/** Estrae da Excel suggerimenti nome/sede/città per nuovo cliente */
+function previewClienteFromExcelRows(rows, fileName){
+  var out={nome:"",codice:nextClienteCodiceProgressivo(),citta:"",sede:"",dipartimento:"",note:"Import Excel · "+(fileName||"")};
+  if(!rows||!rows.length)return out;
+  // cerca riga header con acronimo/matricola
+  var hIdx=-1,h=[];
+  for(var r=0;r<Math.min(rows.length,8);r++){
+    var joined=(rows[r]||[]).map(normalizeHeader).join(" | ");
+    if(joined.indexOf("matricola")>-1||joined.indexOf("acronimo")>-1){hIdx=r;h=rows[r]||[];break;}
+  }
+  function colIn(row,names){
+    for(var i=0;i<(row||[]).length;i++){
+      var x=normalizeHeader(row[i]);
+      for(var j=0;j<names.length;j++){if(x===names[j]||x.indexOf(names[j])>-1)return i;}
+    }
+    return -1;
+  }
+  var cCli=colIn(h,["cliente","ragione sociale","nome cliente","committente"]);
+  var cSede=colIn(h,["sede"]);
+  var cCitta=colIn(h,["citta","città","sede legale"]);
+  var cDip=colIn(h,["dipartimento"]);
+  // prima riga dati
+  var dataStart=hIdx>=0?hIdx+1:1;
+  // se header multi-riga (CAMI), dati dopo sub-header
+  for(var r=hIdx+1;r<Math.min(rows.length,hIdx+4);r++){
+    var jn=(rows[r]||[]).map(normalizeHeader).join(" | ");
+    if(jn.indexOf("codice")>-1&&jn.indexOf("misure")>-1){dataStart=r+1;break;}
+  }
+  var row=null;
+  for(var r=dataStart;r<rows.length;r++){
+    var rr=rows[r];
+    if(!rr||!rr.length)continue;
+    // salta se tutta vuota
+    var any=rr.some(function(v){return String(v||"").trim();});
+    if(any){row=rr;break;}
+  }
+  if(row){
+    if(cCli>=0&&row[cCli])out.nome=String(row[cCli]).trim();
+    if(cSede>=0&&row[cSede])out.sede=String(row[cSede]).trim();
+    if(cCitta>=0&&row[cCitta])out.citta=String(row[cCitta]).trim();
+    if(cDip>=0&&row[cDip])out.dipartimento=String(row[cDip]).trim();
+  }
+  // se non c'è colonna cliente: usa sede o nome file
+  if(!out.nome){
+    if(out.sede)out.nome=out.sede;
+    else if(fileName){
+      out.nome=String(fileName).replace(/\.(xlsx|xls)$/i,"").replace(/[_-]+/g," ").trim();
+    }
+  }
+  if(!out.citta&&out.sede)out.citta=out.sede;
+  if(!out.note)out.note="N.A.";
+  return out;
+}
+async function importExcel(ev){
+  if(!isSuper()){alert("Solo superadmin");ev.target.value="";return;}
+  var file=ev.target.files[0];if(!file)return;
+  if(typeof XLSX==="undefined"){alert("Libreria Excel non caricata");ev.target.value="";return;}
+  pendingExcelFile=file;
+  fillImportClienteSelect();
+  var radios=document.querySelectorAll('input[name="importClienteMode"]');
+  if(radios[0])radios[0].checked=true;
+  var dpcRadios=document.querySelectorAll('input[name="importDpcMode"]');
+  if(dpcRadios[0])dpcRadios[0].checked=true;
+  ["importNewNome","importNewCodice","importNewCitta","importNewNote","importNewSede","importNewDipartimento"].forEach(function(id){
+    var el=document.getElementById(id);if(el){el.value="";el.readOnly=false;el.style.background="";}
+  });
+  window._importFileBaseName=nomeFromExcelFileName(file.name);
+  var nomeModeRadios=document.querySelectorAll('input[name="importNomeMode"]');
+  if(nomeModeRadios[0])nomeModeRadios[0].checked=true;
+  var hint=document.getElementById("importFileHint");
+  if(hint)hint.textContent="File: "+file.name+" · lettura anteprima...";
+  toggleImportClienteMode();
+  document.getElementById("importClienteModal").classList.add("show");
+  ev.target.value="";
+  // anteprima asincrona → precompila nuovo cliente
+  try{
+    var buf=await file.arrayBuffer();
+    var wb=XLSX.read(new Uint8Array(buf),{type:"array"});
+    var rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:"",raw:false});
+    var prev=previewClienteFromExcelRows(rows, file.name);
+    // priorità nome: titolo file (scelta utente), poi dati nel foglio
+    if(window._importFileBaseName)prev.nomeFromFile=window._importFileBaseName;
+    window._importPreview=prev;
+    var set=function(id,v){var el=document.getElementById(id);if(el&&v)el.value=v;};
+    set("importNewCodice",prev.codice);
+    set("importNewCitta",prev.citta||"N.A.");
+    set("importNewNote",prev.note||"N.A.");
+    set("importNewSede",prev.sede||"");
+    set("importNewDipartimento",prev.dipartimento||"");
+    try{onImportNomeModeChange();}catch(ex){}
+    if(hint){
+      hint.textContent="File: "+file.name+(window._importFileBaseName?(" · titolo: "+window._importFileBaseName):"")+(prev.sede?(" · sede: "+prev.sede):"");
+    }
+  }catch(ex){
+    console.warn("preview import",ex);
+    if(hint)hint.textContent="File: "+file.name;
+    var c=document.getElementById("importNewCodice");if(c)c.value=nextClienteCodiceProgressivo();
+    var n=document.getElementById("importNewNote");if(n)n.value="N.A.";
+    try{onImportNomeModeChange();}catch(ex2){}
+  }
+}
+async function confirmImportCliente(){
+  if(!pendingExcelFile)return;
+  var mode=document.querySelector('input[name="importClienteMode"]:checked').value;
+  var clienteId=null;
+  var dpcMode="append";
+  if(mode==="existing"){
+    clienteId=document.getElementById("importClienteId").value;
+    if(!clienteId){alert("Seleziona un cliente");return;}
+    var dm=document.querySelector('input[name="importDpcMode"]:checked');
+    dpcMode=dm?dm.value:"append";
+    if(dpcMode==="overwrite"){
+      var nDpc=countDpc(clienteId);
+      var nome=clienteName(clienteId);
+      if(!confirm("SOVRASCRIVI i DPC di \""+nome+"\"?\n\nVerranno eliminati "+nDpc+" DPC già presenti (con storico collegato) e sostituiti con quelli del file Excel.\n\nConfermi?"))return;
+    }
+  }else{
+    var nome=reqNA(document.getElementById("importNewNome").value);
+    var codice=reqNA(document.getElementById("importNewCodice").value);
+    var citta=reqNA(document.getElementById("importNewCitta").value);
+    var note=reqNA(document.getElementById("importNewNote").value);
+    if(!nome||!codice||!citta||!note){alert("Nome, codice, sede legale e note sono obbligatori (o N.A.)");return;}
+    var row={nome:nome,codice:codice,citta:citta,note:note};
+    var se=document.getElementById("importNewSede");if(se&&(se.value||"").trim())row.sede=(se.value||"").trim();
+    var dip=document.getElementById("importNewDipartimento");if(dip&&(dip.value||"").trim())row.dipartimento=(dip.value||"").trim();
+    var res=await sb.from("clienti").insert([row]).select();
+    if(res.error){
+      // retry senza colonne opzionali
+      delete row.sede;delete row.dipartimento;
+      res=await sb.from("clienti").insert([row]).select();
+      if(res.error){alert(res.error.message);return;}
+    }
+    clienteId=res.data[0].id;
+    toast("Cliente creato: "+nome);
+    await loadAll();
+    dpcMode="append";
+  }
+  var file=pendingExcelFile;
+  document.getElementById("importClienteModal").classList.remove("show");
+  pendingExcelFile=null;
+  await runExcelImport(file,clienteId,dpcMode);
+}
+async function runExcelImport(file,clienteId,dpcMode){
+  dpcMode=dpcMode||"append";
+  if(dpcMode==="overwrite"&&clienteId){
+    toast("Sovrascrittura DPC in corso...");
+    try{
+      var oldList=equipment.filter(function(e){return e.clienteId===clienteId;});
+      for(var oi=0;oi<oldList.length;oi++){
+        var oe=oldList[oi];
+        try{await sb.from("manutenzioni").delete().eq("equip_id",oe.id);}catch(ex){}
+        try{await sb.from("report").delete().eq("equip_id",oe.id);}catch(ex){}
+        try{await sb.from("comments").delete().eq("equip_id",oe.id);}catch(ex){}
+      }
+      try{await sb.from("equipment").delete().eq("cliente_id",clienteId);}catch(ex){}
+      // aggiorna cache locale
+      equipment=equipment.filter(function(e){return e.clienteId!==clienteId;});
+      toast("DPC precedenti eliminati · import file...");
+    }catch(ex){alert("Errore durante sovrascrittura: "+(ex.message||ex));return;}
+  }
+
   var reader=new FileReader();
   reader.onload=async function(e){
     try{
